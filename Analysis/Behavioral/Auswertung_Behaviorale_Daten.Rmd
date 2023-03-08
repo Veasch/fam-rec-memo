@@ -1,0 +1,620 @@
+---
+title: 'Processing Behavioral Data'
+author: 'Veasch'
+date: '16. Januar, 2020'
+output:
+  html_document:
+    toc: yes
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(dev = 'svg', dpi = 300, warning = FALSE,
+                      dev.args = list(bg = 'transparent'))
+# options(tinytex.verbose = TRUE) # if an error occurs when compiling a LaTeX to PDF, and the error message is not clear, try this code (only running it once should be enough)
+
+```
+
+This script processes the behavioral data of the MemOlaf-Project. Firstly, you have convert the `.mat`-files to `.csv`-files. Therefore you can use my Matlab-script `mat2csv.m` in Wanja's github repository (https://github.com/wanjam/MSc_Analysis_Veasna/tree/master/AnalysisFolder/Analysis/Behavioral). As soon, as you got all the `.csv`-files in the same folder of this R Markdown-script, you should be able to run/knit all the chunks without any further adjustments. At least, I hope so. Have fun!
+
+```{r packages, include=FALSE}
+# install packages, if necessary
+if (!require('pacman')) install.packages('pacman')
+pacman::p_load(data.table, tidyverse, car, afex, plyr, ez, apaTables, stringr, ggpubr, Rmisc, emmeans, see) # pacman firstly checks for missing packages, and installs them, if any are missing
+
+# install devtools package if necessary
+if(!'devtools' %in% rownames(installed.packages())) install.packages('devtools')
+
+# install the stable development version from GitHub
+if(!'papaja' %in% rownames(installed.packages())) devtools::install_github('crsh/papaja')
+
+# loading packages
+pkgs <- c('data.table', 'tidyverse', 'car','afex', 'plyr','ez', 'apaTables', 'stringr', 'papaja', 'ggpubr', 'Rmisc', 'emmeans', 'see')
+sapply(pkgs, require, character.only = TRUE)
+
+# create parameters for special ggplot layer, which changes the look of the plots into an APA-conform appearance
+apastyle <- theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
+panel.background = element_blank(), axis.line = element_line(colour = 'black'), legend.position='right', strip.background = element_rect(fill = '#F2F2F2', color = 'white'), strip.text = element_text(face = 'bold'))
+```
+
+# Importing single-subject data and aggregation
+```{r importing data, results=FALSE}
+aggr.data <- NULL # empty data object to store and aggregate the single subject data into one big aggregated data frame
+
+file.names <- dir(pattern = 'B_Logfile.csv') 
+
+for(isub in 1:length(file.names)){
+  file <- fread(file.names[isub])
+  file.clean <- file[, .(Subject = file.names[isub], trialNr, trialType, hitRate, accuracy, RT, ConditionW, badgaze, hsmvd, RemKnow, OldNew)] # to keep only the variables of interest
+  aggr.data <- rbind(aggr.data, file.clean) # feed the aggr.data with the i-th data frame of the i-th subject
+}
+
+# rename 'Subject'
+aggr.data[, ':=' (Subject = sapply(
+  strsplit(as.character(Subject), split='_', fixed=TRUE)
+  , function(x) (x[2])))]
+aggr.data[,':='(ID = parse_number(Subject) %>% as.factor())]
+```
+
+## Overview
+```{r overview}
+
+# list the variables in aggr.data
+colnames(aggr.data)
+
+# quick glance at the data
+list(aggr.data) # everything as expected, so far
+
+# show the structure of the data
+str(aggr.data) # change Subject, trialType, ConditionW, RemKnow and OldNew into factors!
+
+aggr.data[, ':='(
+  Subject = as.factor(aggr.data$Subject),
+  trialType = as.factor(aggr.data$trialType),
+  ConditionW = as.factor(aggr.data$ConditionW), 
+  RemKnow = as.factor(aggr.data$RemKnow), 
+  OldNew = as.factor(aggr.data$OldNew)
+  )]
+
+str(aggr.data) # nice!
+
+na_count <-sapply(aggr.data, function(y) sum(length(which(is.na(y)))))
+na_count <- data.frame(na_count)
+na_count# There are only NAs in the last block of participant 7B. The experiment was automatically aborted due to the unexpected event of 7B having pressed two keys at the same time.
+
+aggr.data <- na.omit(aggr.data)
+any(is.na(aggr.data)) # Perfect!
+
+summary(aggr.data) # there are some unexpected high RTs (I will deal with them), relatively percentage of hsmvd, far more new than old judgments - indicates challenging trials
+
+rm(list = c('file', 'file.clean', 'na_count'))
+```
+
+# Cleaning Data 
+## Extracting relevant variables, cases, conditions
+```{r extractingVars}
+# List the current variables
+colnames(aggr.data) # we only need those data for which what follows is true: ConditionW == 'passive' & hsmvd == 0. In case you wonder: 'badgaze' is a 'bad' variable as it contains exclusively the value 0.
+
+aggr.data <- aggr.data[ConditionW == 'passive',]
+levels(aggr.data$RemKnow)
+levels(aggr.data$RemKnow) <- c('new', 'new', 'know', 'new', 'remember') # combining levels 'new' and 'foreign'
+levels(aggr.data$RemKnow)
+
+ggplot(aggr.data, aes(x=ID, y=RT))+
+  geom_boxplot() +
+  #coord_flip() +
+  labs(x='ID', y='Reaktionszeit [sec]') + # many right tail outliers 
+  apastyle
+
+ggplot(aggr.data, aes(x=ID, fill=RemKnow))+
+  geom_bar() + 
+  labs(x='ID', y='Trials', title='Trialanzahl pro Proband') +
+  scale_fill_grey() +
+  apastyle
+
+relevData <- aggr.data[hsmvd == 0,]
+
+# now remove the irrelevant variables
+relevData <- relevData[,c('ConditionW', 'badgaze', 'hsmvd') := NULL]
+
+colnames(relevData) # check!
+```
+
+## Removing extreme reaction times
+```{r badRTs}
+# Due to the fact that this experiment isn't a classical RT experiment, I'm going to apply an ultra liberal cut off for RT being to high, which is everthing bigger than 30 sec. Ratcliff (1993) gave some nice considerations on how to deal with reaction times. Luce (1986) showed that 'real' RTs have a minimum of 100 ms - time needed for physiological processes plus motor response.
+
+# keep RTs <= 30 & Trial-Nr >= 30
+relevData[, NTrials := .N, by = Subject]
+relevData[, ':='(keep = RT <= 30 & RT >= .100 & NTrials >= 30), by = Subject]
+
+# keep middle 95%
+cleanData <- relevData[keep == TRUE,]
+cleanData[, keep := NULL]
+
+summary(cleanData$RT) # good!
+
+# check for the percentage of removed data, which should be not bigger than 5%
+1-(nrow(cleanData)/nrow(relevData)) # perfect!
+
+dirty <- (100*(1 - nrow(cleanData)/nrow(aggr.data))) %>% printnum()
+
+rm(relevData)
+```
+
+**Data cleaning led to `r dirty`% lost data.**
+
+## Generating memorability levels
+```{r computingMemolevs}
+
+cleanData$memlev <- ifelse(cleanData$hitRate < .5, '1',
+                           ifelse(cleanData$hitRate >= .74, '3', '2'))
+
+str(cleanData) # convert memlev to ordered factor
+cleanData[,':='(memlev = as.ordered(cleanData$memlev))]
+```
+
+## Find subjects to be excluded from EEG analysis
+
+Duarte (2004) recommends that there are at least 10 participants with at least 15 artifact-free trials of each trial type.
+
+```{r excluding subjects from eeg analysis}
+
+# which subjects to be excluded for hypothesis 1b
+tmp <- cleanData[accuracy==1, .N, by = .(Subject, RemKnow)]
+tmp <- tmp[N < 15, .(Subject = droplevels(Subject), RemKnow, N)]
+famrec_exclude <- tmp
+famrec_exclude$Subject
+
+# which subjects to be excluded for hypothesis 2b
+tmp <- cleanData[, .N, by = .(Subject, trialType, memlev)]
+tmp <- tmp[N < 15, .(Subject = droplevels(Subject), trialType, memlev, N)]
+memo_exclude <- tmp
+memo_exclude$Subject
+```
+
+# First impressions
+## Number of clean trials per participant
+```{r cleanTrialsN}
+# Now print the clean Boxplots
+ggplot(cleanData, aes(x=ID, y=RT))+
+  geom_boxplot() + 
+  labs(x='ID', y='Reaktionszeit [sec]') +
+  apastyle 
+
+ggplot(cleanData, aes(x=ID, fill=RemKnow))+
+  geom_bar() + 
+  labs(x='ID', y='Trials') +
+  scale_fill_grey(name='Urteil', labels=c('neu', 'know (alt)', 'remember (alt)')) +
+  apastyle 
+```
+
+## Response distribution per Trial Type (*target* vs. *filler*)
+```{r response distribution}
+tmp <- cleanData[, .N, by = .(ID, trialType, RemKnow)]
+tmp1 <- cleanData[, .(Ntot = .N), by = .(ID)]
+tmp <- merge(tmp, tmp1, by = 'ID')
+tmp[, ':=' (Nproz = N/Ntot)]
+
+tmp <- tmp[, .(meanN = mean(Nproz), sd = sd(Nproz)), by = .(trialType,RemKnow)]
+ 
+# barplot
+plot_resp <- ggplot(tmp, aes(x=trialType, y=meanN, fill=RemKnow)) +
+  geom_bar(stat='identity', width = .6, position=position_dodge()) +
+  geom_errorbar(aes(ymin=meanN-sd, ymax=meanN+sd), width=.2, position=position_dodge(.6)) +
+  scale_x_discrete(labels = c('Filler','Target')) +
+  labs(x='Stimulusart', y='Mittlere relative Häufigkeit') +
+  scale_fill_grey(name='Urteil', labels=c('neu', 'know', 'remember')) +
+  apastyle
+
+plot_resp
+```
+
+## Density plots of RTs for different conditions
+```{r RT density}
+
+# density of RTs by memlev
+plot_RTDenseMemlev <- ggplot(cleanData[RT <= 4], aes(x = RT, fill = factor(memlev))) + 
+  geom_density(alpha = 0.6) + 
+  ylim(0,1.6) +
+  scale_fill_discrete(name='Memorabilität', labels=c('niedrig', 'mittel', 'hoch')) + 
+  labs(x=NULL, y='Dichte') +
+  apastyle
+
+plot_RTDenseMemlev
+
+# density RT by RK judgements
+plot_RTDenseRK <- ggplot(cleanData[RemKnow %in% c('remember','know') & RT <= 4], aes(x = RT, fill = factor(RemKnow))) + 
+  geom_density(alpha = 0.6) +
+  ylim(0,1.6) +
+  scale_fill_grey(name='Urteil') + 
+  labs(x='Antwortlatenz [s]', y='Dichte') +
+  apastyle
+
+plot_RTDenseRK
+```
+
+# Generating Dependent Variables
+## Hit Rates (Appendix)
+Hit Rate: $$HR_{ij} = \frac{hits_{ij}}{hits_{ij}+misses_{ij}}$$ i: i-th memo level (low, med, hi) and j: j-th judgment (rem vs. know).
+``` {r hit rates}
+# define variables that code Hits/Misses/CorrectRejections/FalseAlarms
+# additionally, differentiate between hits, provoced by R or K judgements
+cleanData[,':='(
+  isCorrectRejection = trialType == 'Filler' & OldNew=='new',
+  isHit = trialType == 'Target' & OldNew=='old',
+  isHitR = trialType == 'Target' & RemKnow == 'remember',
+  isHitK = trialType == 'Target' & RemKnow == 'know',
+  isFalseAlarm = trialType == 'Filler' & accuracy == 0,
+  isFalseAR = trialType == 'Filler' & RemKnow == 'remember',
+  isFalseAK = trialType == 'Filler' & RemKnow == 'know',
+  isMiss = trialType == 'Target' & OldNew=='new',
+  condition = str_c(trialType, RemKnow) %>% as.factor()
+  )]
+
+# Firstly, hit rates for R judgements by Subject, memlev 
+HitrateR <- cleanData[,.(hitRate = sum(isHitR)/(sum(isHitR) + sum(isMiss)), 
+                         hitRateCases = (sum(isHitR) + sum(isMiss))), 
+                      by = .(Subject, memlev)] 
+HitrateR[,':='(RK = as.factor(rep('R', times=nrow((HitrateR)))))] # add new variable RK
+
+# Secondly, hit rates for K judgements by Subject, memlev 
+HitrateK <- cleanData[,.(hitRate = sum(isHitK)/(sum(isHitK) + sum(isMiss)), 
+                         hitRateCases = (sum(isHitK) + sum(isMiss))), 
+                      by = .(Subject, memlev)] 
+HitrateK[,':='(RK = as.factor(rep('K', times=nrow((HitrateR)))))] # also new variable RK
+
+# And finally, combining both data frames. (I am sure, there is a more elegant way of coding those three steps.)
+Hitrate <- rbind(HitrateR, HitrateK)
+
+# mean hit rates by memlev and RK judgment
+HR <- summarySEwithin(Hitrate, measurevar = 'hitRate', withinvars = c('memlev', 'RK'), idvar = 'Subject')
+
+rm(list = c('HitrateK', 'HitrateR'))
+```
+
+## False Alarm Rates (Appendix)
+False Alarm Rate: $$FAR_{ij} = \frac{fa_{ij}}{fa_{ij}+cr_{ij}}$$ i: i-th memo level (low, med, hi) and j: j-th judgment (rem vs. know).
+``` {r false alarm rates}
+
+# Firstly, false alarm rates for R judgements by Subject, memlev 
+FARateR <- cleanData[,.(falseARate = sum(isFalseAR)/(sum(isFalseAR) + sum(isCorrectRejection)), 
+                     falseARateCases = (sum(isFalseAR) + sum(isCorrectRejection))),
+                     by = .(Subject, memlev)] 
+FARateR[,':='(RK = as.factor(rep('R', times=nrow((FARateR)))))] # add new variable RK
+
+# Secondly, false alarm rates for K judgements by Subject, memlev 
+FARateK <- cleanData[,.(falseARate = sum(isFalseAK)/(sum(isFalseAK) + sum(isCorrectRejection)), 
+                        falseARateCases = (sum(isFalseAR) + sum(isCorrectRejection))),
+                     by = .(Subject, memlev)] 
+FARateK[,':='(RK = as.factor(rep('K', times=nrow((FARateK)))))] # add new variable RK
+
+# And finally, combining both data frames.
+FARate <- rbind(FARateR, FARateK)
+
+# mean false alarm rates by memlev and RK judgment
+FAR <- summarySEwithin(FARate, measurevar = 'falseARate', withinvars = c('memlev', 'RK'), idvar = 'Subject')
+
+rm(list = c('FARateK', 'FARateR'))
+```
+
+## Sensitivity (*d'*, Hypothese 1a, 2a)
+Sensitivity: $$d'_{ij} = z(HR_{ij}) - z(FAR_{ij})$$ i: i-th memo level (low, med, hi) and j: j-th judgment (rem vs. know).
+
+Response Bias: $$c_{ij} = -\frac{z(HR_{ij}) + z(FAR_{ij})}{2}$$ i: i-th memo level (low, med, hi) and j: j-th judgment (rem vs. know).
+``` {r dprime values}
+dPrime <- cbind(Hitrate, falseARate = FARate$falseARate)
+
+dPrime[, ':=' (zHitRate = (hitRate - mean(hitRate))/sd(hitRate),
+               zFalseARate = (falseARate - mean(falseARate))/sd(falseARate),
+               hitRate = NULL,
+               falseARate = NULL,
+               hitRateCases = NULL,
+               falseARateCases = NULL
+               )]
+dPrime[, dprime := zHitRate - zFalseARate]
+
+repBias <- dPrime[, ':=' (repBias = -.5*(zHitRate + zFalseARate),
+                          zHitRate = NULL,
+                          zFalseARate = NULL)
+                  ]
+
+# mean sensitivity by memlev and RK judgment
+DPRI <- summarySEwithin(dPrime, measurevar = 'dprime', withinvars = c('memlev', 'RK'), idvar = 'Subject')
+# mean response bias by memlev and RK judgment
+RBIAS <- summarySEwithin(repBias, measurevar = 'repBias', withinvars = c('memlev', 'RK'), idvar = 'Subject')
+```
+
+## Scaled Difference (*SCD*, Hypothese 3a)
+
+Compute the *SCD* for correct judgements by combining R- and K-judgments into one variable.
+
+Scaled Difference (SCD):
+
+$$ SCD_{ij} = (R_{ij} - K_{ij}) / (R_{ij} + K_{ij})$$
+R: remember, K: know, i= i-th Subject, j: j-th memo level
+
+```{r scaled difference}
+
+scd <-cleanData[,.(SCDHit = (sum(isHitR) - sum(isHitK))/(sum(isHitR) + sum(isHitK)),
+                  SCDFa = (sum(isFalseAR) - sum(isFalseAK))/(sum(isFalseAR) + sum(isFalseAK))),
+                by = .(Subject,memlev)]
+
+# drop subject if any NA
+scd <- na.omit(scd)
+tmp <- scd[, .(keep = ifelse(.N==3,1,0)), by=Subject]
+# combine data tables and drop subjects
+scd <- merge(scd,tmp,by='Subject')
+scd <- scd[keep==1,]
+scd[, keep:=NULL]
+
+# converting into long format (in case I need it later)
+# scd_long <- gather(scd, correctness, SCD, SCDHit:SCDFa, factor_key=TRUE) %>% as.data.table
+
+# For now, I am going to work only with correct judgemnts
+SCD <- summarySEwithin(scd, measurevar = 'SCDHit', withinvars = c('memlev'), idvar = 'Subject')
+``` 
+
+# Statistical Analysis 
+## Descriptive statistics
+``` {r first look}
+# hypothesis 1a and 2a
+dPrimePretty <- dPrime[, .(Proband = Subject, 
+                           Memorabilität = memlev, 
+                           Urteil = RK, 
+                           dprime)]
+levels(dPrimePretty$Memorabilität) <- c('niedrig', 'mittel', 'hoch')
+levels(dPrimePretty$Urteil) <- c('remember', 'know')
+
+descr_dPrime <- dPrimePretty[, .(M = mean(dprime), SD = sd(dprime)), by = .(Memorabilität, Urteil)] %>% printnum()
+
+descr_dPrime <- reshape(descr_dPrime, idvar = "Urteil", timevar = "Memorabilität", direction = "wide")
+
+descr_dPrime
+
+# Hypothesis 3a
+scdPretty <- scd[, .(Proband = Subject, 
+                           Memorabilität = memlev, 
+                           SCD = SCDHit)]
+levels(scdPretty$Memorabilität) <- c('niedrig', 'mittel', 'hoch')
+
+descr_scd <- scdPretty[, .(M = mean(SCD), SD = sd(SCD)), by = .(Memorabilität)] %>% printnum()
+
+descr_scd
+```
+
+## Assumption 1: Detecting outliers
+
+```{r outliers}
+limitSCD <- c(scd$SCDHit %>% min(), scd$SCDHit %>% max())
+
+## Outliers by group
+boxplot_scd <- ggplot(scd, aes(x=memlev, y = SCDHit)) +
+  geom_hline(yintercept = 0, color = 'grey') +
+  #geom_line(aes(group=Subject, color=Subject, alpha=.05)) +
+  geom_violinhalf(width=.9) +
+  geom_boxplot(width=.2, alpha=.5) +
+  geom_jitter(alpha=.5, width = .01) +
+  labs(x='Memorabilität', y="") +
+  scale_x_discrete(labels = c('niedrig','mittel', 'hoch')) +
+  scale_color_grey() +
+  ylim(limitSCD) +
+  apastyle +
+  theme(legend.position="none")
+
+boxplot_scd
+```
+
+## Assumption 2: Normal Distribution per condition
+Due to the central limit theorem we can assume that the samples per condition are approximately normally distributed, because sample size is > 30.
+```{r normal distribution}
+# shapiro wilk for normal distribution (if the dv is normal distributed, its residuals are too)
+scd[, .N, by = .(memlev)] # N's of 30 or higher are recommended in case of the shapiro wilk test being significant
+shapiroMain <- scd[,.(p.value = shapiro.test(SCDHit)$p.value), by = .(memlev)]
+shapiroMain
+
+# qqPlots by memlev
+labelsMemlev <- c('1' = 'niedrig', '2' = 'mittel', '3' = 'hoch')
+
+ggplot(scd, aes(sample = SCDHit)) +
+  geom_qq(alpha=.7, shape=16) +
+  geom_qq_line() +
+  labs(x='theoretisch', y='beobachtet') +
+  facet_grid(. ~ memlev, labeller=labeller(memlev = labelsMemlev)) +
+  apastyle
+```
+
+## Assumption 3: Sphericity correction 
+### Hypothesis' 1a and 2a
+
+ * Hypothese 1a: *Familiarity*- und *recollection*-basierte Wiedererkennung spiegelt sich in unterschiedlicher WIedererkennungsleistung (WL) auf der Verhaltensebene wider.
+  * Hypothese 2a: Höhere *Memorabilität* hat einen positiven Einfluss auf die WL auf der Verhaltensebene.
+  
+```{r aov dPrime}
+
+# hypothesis 1a
+ttest_dprimeUrteil <- t.test(dprime ~ Urteil, data = dPrimePretty, paired = TRUE)
+ttest_dprimeUrteil <- apa_print(ttest_dprimeUrteil) 
+
+ttest_dprimeUrteil
+
+# hypothesis 2a
+anovaData_dprimeMemo <- aov_car(dprime ~ Memorabilität + Error(Proband/Memorabilität), data=dPrimePretty)
+
+anova_dprimeMemo <- apa_print(anovaData_dprimeMemo) 
+anova_dprimeMemo
+
+# effect of memlev, follow up, lsd test
+
+follow_dPrimeMemo <-emmeans(anovaData_dprimeMemo, ~Memorabilität, method = 'multivariate')
+follow_dPrimeMemo
+
+follow_dPrimeMemo <- pairs(follow_dPrimeMemo, adjust='bonferroni') %>% apa_print()
+follow_dPrimeMemo$table
+```
+
+
+### Hypothesis 3a: Repeated Measures ANOVA plus Follow Up
+
+* Hypothese 3a: Höhere *Memorabilität* führt zu einer Verschiebung des *Urteilsverhältnisses*, in der Weise, dass mehr *recollection*-basierte als *familiarity*-basierte Wiedererkennung auftritt.
+
+```{r aov scd}
+
+# anova
+anovaData_scd <- aov_car(SCD ~ Memorabilität + Error(Proband/Memorabilität), data=scdPretty)
+anova_scd <- apa_print(anovaData_scd)
+anova_scd
+
+# effect of memlev, follow-up, lsd test
+follow_scd <-emmeans(anovaData_scd, ~Memorabilität, method = 'multivariate')
+follow_scd
+
+follow_scd <- pairs(follow_scd, adjust='bonferroni') %>% apa_print()
+follow_scd$table
+```
+
+# Main Plots
+## SCD
+Let's plot SCD values by memorability level! 
+
+``` {r main plot}
+
+tmp <- normDataWithin(data=scd, idvar="Subject", measurevar="SCDHit")
+
+plot_SCD <- ggplot(SCD, aes(x = memlev, y = SCDHit, group=1)) +
+  geom_hline(yintercept = 0,  color='grey') +
+  geom_line(aes(x= memlev, y = SCDHitNormed, group=Subject), data = tmp, alpha=.1) +
+  geom_line(size = 1) +
+  geom_point(size = 2.5, shape = 18) +
+  geom_errorbar(aes(ymin = SCDHit-ci, ymax = SCDHit+ci), width=0.07) +
+  labs(x='Memorabilität', y="Scaled Difference (SCD)") +
+  scale_x_discrete(labels = c('niedrig','mittel', 'hoch')) +
+  scale_colour_grey(name='Korrektheit', labels=c('Hit', 'False Alarm')) +
+  ylim(limitSCD) +
+  apastyle
+
+plot_SCD
+
+plot_hypSCD <- ggarrange(plot_SCD, boxplot_scd, widths = c(3,2), labels = c('A', 'B'), font.label = list(size=12))
+
+plot_hypSCD
+```
+
+## Other Variables
+
+```{r dprime repBias, hr und far}
+
+pd <- position_dodge(width = .07) # shifting the elements of the plot, in order to make the plot clearer 
+  
+plot_dprime <- ggplot(DPRI, aes(x = memlev, y = dprime, group = RK, colour = RK)) +
+  geom_hline(yintercept = 0,  color='grey') +
+  geom_line(size = 1) +
+  geom_point(size = 2.5, shape = 18) +
+  geom_errorbar(aes(ymin = dprime-ci, ymax = dprime+ci), width=0.07) +
+  labs(x='Memorabilität', y="Sensitivität (d')") +
+  scale_x_discrete(labels = c('niedrig','mittel', 'hoch')) +
+  scale_colour_grey(name='Urteil', labels=c('remember', 'know')) +
+  apastyle
+
+plot_dprime
+
+# response bias
+plot_repBias <- ggplot(RBIAS, aes(x = memlev, y = repBias, group = RK, colour = RK)) +
+  geom_hline(yintercept = 0,  color='grey') +
+  geom_line(size = 1) +
+  geom_point(size = 2.5, shape = 18) +
+  geom_errorbar(aes(ymin = repBias-ci, ymax = repBias+ci), width=0.07) +
+  labs(x='Memorabilität', y="Antworttendenz") +
+  scale_x_discrete(labels = c('niedrig','mittel', 'hoch')) +
+  scale_colour_grey(name='Urteil', labels=c('remember', 'know')) +
+  apastyle
+
+# hit rate
+plot_hir <- ggplot(HR, aes(x = memlev, y = hitRate, group = RK, colour = RK)) +
+  geom_line(size = 1, position = pd) +
+  geom_point(size = 2.5, shape = 18, position = pd) +
+  geom_errorbar(aes(ymin = hitRate-ci, ymax = hitRate+ci), width=0.07, position = pd) +
+  ylim(0,.6) +
+  labs(x='Memorabilität', y='Hit Rate') +
+  scale_x_discrete(labels = c('niedrig','mittel', 'hoch')) +
+  scale_colour_grey(name='Urteil', labels=c('remember', 'know')) +
+  apastyle
+
+# false alarm rate
+plot_far <- ggplot(FAR, aes(x = memlev, y = falseARate, group = RK, colour = RK)) +
+  geom_line(size = 1) +
+  geom_point(size = 2.5, shape = 18) +
+  geom_errorbar(aes(ymin = falseARate-ci, ymax = falseARate+ci), width=0.07) +
+  ylim(0,.6) +
+  labs(x='Memorabilität', y='False Alarm Rate') +
+  scale_x_discrete(labels = c('niedrig','mittel', 'hoch')) +
+  scale_colour_grey(name='Urteil', labels=c('remember', 'know')) +
+  apastyle
+
+plot_recog <- ggarrange(plot_hir, plot_far, plot_dprime + ylim(-1.5,1.7), plot_repBias + ylim(-1.5,1.7), common.legend = T, legend = 'bottom', labels = c('A', 'B', 'C', 'D'), font.label = list(size = 12))
+
+plot_recog
+```
+
+Anmerkung: Hätte ich, wie in vielen vorigen Studien, die Hit Rate als AV verwendet, könnte man hinsichtlich des Haupteffekts der Urteil fälschlicherweise auf den Schluss kommen, dass die Wiedererkennungsleistung für K-Urteile besser ausfällt als für R-Urteile. *Besser ist es, auf sein Bauchgefühl zu vertrauen.* - könnte eine mögliche Interpretation des Befundes sein. Sieht man sich aber zusätzlich den Line Plot für die False Alarm Rate an, erkennt man schnell, dass die *bessere* Hit Rate sozusagen durch eine *schlechtere* False Alarm Rate *erkauft* wurde. Mehr Hits gehen mit mehr False Alarms einher. *d'* berücksichtigt genau diesen Umstand, indem die z-standardisierten Rates für Hits und False Alarms voneinander abgezogen werden. So ergibt sich eine meiner Meinung nach validere Operationalisierung von *Wiedererkennungsleistung*.  
+
+Trotzdem: Auch *d'* unterschlägt Informationen, die auch relevant und interessant sein könnten. Es unterschlägt bspw. die sog. Antworttendenz. Jemand, der eher dazu tendiert, *alt* als *neu* zu urteilen, hat ein liberaleres Antwortkriterium, eine Antworttendenz in Richtung *alt*. Zwei Personen mit derselben Sensitivität *d'* können eine unterschiedliche Antworttendenz haben. Aber wessen Wiedererkennungsleistung würde man als die bessere bezeichnen? Desjenigen, der sich häufiger korrekt positiv und häufiger falsch positiv entscheidet? Oder desjenigen, der sich seltener korrekt positiv aber dafür seltener falsch positiv entscheidet? Das wäre zu diskutieren bzw. die Antwort auf diese Frage ist stark vom von der inhaltlichen Fragestellung abhängig.
+
+## Visualizing Impact of Between-Subject Variance
+
+```{r betweensubjects}
+
+tmp <- normDataWithin(data=dPrime, idvar="Subject", measurevar="dprime")
+
+plot_dprimeDetailed <- ggplot(tmp, aes(x= memlev, y = dprimeNormed, group=Subject, color=RK)) +
+  geom_line(alpha=.1, color='black') +
+  geom_point(size = 2.5, color = 'black', shape = 18, aes(x = memlev, y = dprime, group = RK), data = DPRI) +
+  geom_hline(yintercept = 0,  color='grey') +
+  geom_smooth(aes(group=RK), size = 1, color ='black', se=F) +
+  geom_errorbar(aes(x = memlev, y = dprime, group = RK, ymin = dprime-ci, ymax = dprime+ci), width=0.07, color='black', data = DPRI) +
+  labs(x='Memorabilität', y="Mittlere Sensitivität (d')") +
+  scale_x_discrete(labels = c('niedrig','mittel', 'hoch')) +
+  scale_color_grey(guide=F) +
+  facet_grid(.~RK, labeller = labeller(RK = c('R'='remember', 'K'='know'))) +
+  apastyle
+
+plot_dprimeDetailed
+
+plot_RK <- ggplot(tmp, aes(x=RK, y = dprimeNormed)) +
+  geom_hline(yintercept = 0, color = 'grey') +
+  geom_violinhalf(width=.7) +
+  geom_boxplot(width=.3, alpha=.5) +
+  geom_jitter(alpha=.1, width = .01) +
+  labs(x='Urteil', y="") +
+  scale_x_discrete(labels = c('remember', 'know')) +
+  scale_color_grey() +
+  apastyle +
+  theme(legend.position="none")
+
+plot_RK
+
+plot_memlev <- ggplot(tmp, aes(x=memlev, y = dprimeNormed)) +
+  geom_hline(yintercept = 0, color = 'grey') +
+  geom_violinhalf(width=.7) +
+  geom_boxplot(width=.3, alpha=.5) +
+  geom_jitter(alpha=.1, width = .01) +
+  labs(x='Memorabilität', y="") +
+  scale_x_discrete(labels = c('niedrig', 'mittel', 'hoch')) +
+  scale_color_grey() +
+  apastyle +
+  theme(legend.position="none")
+
+plot_memlev
+
+plot_hyp12 <- ggarrange(plot_RK, plot_memlev, ncol = 1, labels = c('B', 'C'), font.label = list(size=12)) %>% ggarrange(plot_dprimeDetailed,., labels = c('A', ''), widths = c(2,1), font.label = list(size=12))
+
+plot_hyp12
+```
+
+# Saving Enviromenment for Manuscript
+```{r saving enviroment}
+rm(aggr.data)
+
+save.image('Auswertung_Behaviorale_Daten.RData') # save environment for manuscript
+```

@@ -1,0 +1,424 @@
+---
+title: 'EEG-Analyse, Memorability EKP-Old-New-Effekt'
+author: 'Ceasch'
+date: '16. Januar, 2020'
+output:
+  html_document:
+    toc: yes
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(dev = 'svg', dpi = 300, warning = FALSE,
+                      dev.args = list(bg = 'transparent'))
+# options(tinytex.verbose = TRUE) # if an error occurs when compiling a LaTeX to PDF, and the error message is not clear, try this code (only running it once should be enough)
+
+```
+
+Dieses Skript soll folgende Hypothese meiner Masterarbeit *Das Zusammenspiel von Familiarity, Recollection und Memorabilität* überprüfen:
+
+* Hypothese 2b: Memorabilität beeinflusst die Größe eines allgemeinen
+EKP-Old-New-Effekts.
+
+```{r packages, include=FALSE}
+# install packages, if necessary
+if (!require('pacman')) install.packages('pacman')
+pacman::p_load(data.table, tidyverse, car, afex, plyr, ez, apaTables, stringr, ggpubr, knitr, see, emmeans) # pacman firstly checks for missing packages, and installs them, if any are missing
+
+# install devtools package if necessary
+if(!'devtools' %in% rownames(installed.packages())) install.packages('devtools')
+
+# install the stable development version from GitHub
+if(!'papaja' %in% rownames(installed.packages())) devtools::install_github('crsh/papaja')
+
+# loading packages
+pkgs <- c('data.table', 'tidyverse', 'car','afex', 'plyr','ez', 'apaTables', 'stringr', 'papaja', 'ggpubr', 'knitr', 'see','emmeans')
+sapply(pkgs, require, character.only = TRUE)
+
+# create parameters for special ggplot layer, which changes the look of the plots into an APA-conform appearance
+apastyle <- theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
+panel.background = element_blank(), axis.line = element_line(colour = 'black'), legend.position='right', strip.background = element_blank(), strip.text = element_text(face = 'bold'))
+```
+
+# Data Frames importieren
+
+In MatLab fand die Vorverarbeitung statt. Es werden hier sechs Datensätze importiert, die sich aus der Kombination der Faktoren **Urteil** (nur korrekte Urteile, zwei Stufen, *alt* vs. *neu*) und der **Memorabilität** (drei Stufen, *niedrig*, *mittel*, *hoch*) ergeben. 
+
+In der Literatur werden meist nur die korrekten Urteile verwendet, auf dessen Basis die EKP-Unterschiede später getestet werden. Nach dem Import bleiben daher drei Datensätze erhalten, die jeweils die Variablen *ID, Channel, Time, uV* enthalten. Die Datensätze heißen `filHi`, `fillLo`, `tarMed`, `tarHi`, `tarLo` und `tarMed`K (fil: filler, tar: target).
+
+```{r importing data}
+
+file.names <- dir(pattern = '.csv') # variable that contains flatdata file names per condition
+
+for(icond in 1:length(file.names)){
+  file <- fread(file.names[icond])
+  var.name <- sapply(strsplit(file.names[icond], split='_', fixed=TRUE), function(x) (x[2])) 
+  assign(str_replace(var.name, '.csv', ''), file)
+}
+
+rm(file)
+
+str(filHi)
+```
+
+# Kleine Anpassungen
+
+Die Variablen `ID` und `Channel` werden in Faktoren konvertiert.
+
+```{r tiny adjustments, echo = T, results = 'hide'}
+
+filHi[, ':=' (ID = as.factor(ID),
+               Channel = as.factor(Channel)
+               )]
+
+fillLo[, ':=' (ID = as.factor(ID),
+               Channel = as.factor(Channel)
+               )]
+
+tarMed[, ':=' (ID = as.factor(ID),
+               Channel = as.factor(Channel)
+               )]
+
+tarHi[, ':=' (ID = as.factor(ID),
+               Channel = as.factor(Channel)
+               )]
+
+tarLo[, ':=' (ID = as.factor(ID),
+               Channel = as.factor(Channel)
+               )]
+
+filMed[, ':=' (ID = as.factor(ID),
+               Channel = as.factor(Channel)
+               )]
+```
+
+# Datensätze zusammenbinden und shapen
+
+Die sechs Datensätze (ab hier: subsets) werden so kombiniert, dass man sie später zur Berechnung verschiedener rmANOVAs verwenden kann. Am Ende soll es einen großen Datensatz `aggrData` geben, der die Variablen *ID, Channel, Time, uV* und *RK* beinhaltet, wobei *RK* die Urteilsart kodiert.
+
+Des Weiteren werden die sechs subsets so gefiltert, dass nur noch Daten von -250 ms bis 1000 ms verwendet werden, da dieses Intervall die für die Hypothesen relevanten Zeitpunkte enthält (familiarity bei 300-500 ms und recollection bei 500-800 ms.). Zuletzt werden nur Daten behalten, die von den A- oder B-Elektroden kommen (VEOG, HEOG, usw. werden rausgenommen).
+
+```{r anova format}
+
+filHi[, ':=' (memo = as.factor('Hi')
+           )
+           ]
+filHi <- filHi[Time >= -250 & Time <= 1000]
+
+fillLo[, ':=' (memo = as.factor('Lo')
+           )
+           ]
+fillLo <- fillLo[Time >= -250 & Time <= 1000]
+
+filMed[, ':=' (memo = as.factor('Med')
+           )
+           ]
+filMed <- filMed[Time >= -250 & Time <= 1000]
+
+
+tarHi[, ':=' (memo = as.factor('Hi')
+           )
+           ]
+tarHi <- tarHi[Time >= -250 & Time <= 1000]
+
+tarLo[, ':=' (memo = as.factor('Lo')
+           )
+           ]
+tarLo <- tarLo[Time >= -250 & Time <= 1000]
+
+tarMed[, ':=' (memo = as.factor('Med')
+           )
+           ]
+tarMed <- tarMed[Time >= -250 & Time <= 1000]
+
+
+tmp <- rbind(filHi, filMed, fillLo)
+tmp1 <- rbind(tarHi, tarMed, tarLo)
+
+tmp <- tmp[, uVNew := tmp1$uV-uV]
+tmp <- tmp[, .(ID, Channel, Time, memo, uV = uVNew)]
+
+tmp$Channel %>% levels()
+
+# remove channels that are not needed
+tmp1 <- tmp[grep('^A', Channel),]
+tmp2 <- tmp[grep('^B', Channel),]
+aggrData <- rbind(tmp1, tmp2)
+aggrData <- aggrData[, .(ID, Channel = droplevels(Channel), Time, memo, uV)]
+
+aggrData$Channel %>% levels()
+
+# baseline correction (-200 to 0 ms)
+aggrData[Time %between% c(-200,0), baselineValue := mean(uV), by = .(ID, Channel, memo)]
+aggrData[, baselineValue := unique(na.omit(baselineValue)), by = .(ID, Channel, memo)]
+aggrData[, uV := uV - baselineValue]
+aggrData[, baselineValue := NULL]
+
+# cleaning environment
+rm(list=ls(pattern= 'tmp'))
+rm(list=ls(pattern= 'fi'))
+rm(list=ls(pattern= 'tar'))
+
+
+aggrData %>% summary()
+aggrData %>% str()
+```
+
+# Ausschluss von Probanden (Schritt 1)
+
+**ACHTUNG**: Dieser Schritt wurde übersprungen, da ansonsten zu viele Probanden wegfielen. Vor allem aufgrund der Bedingung *alt/niedrig* 
+
+Wie in Duarte (2004) angeben: “At least 10 participants with at least 15 artifact-free trials of that trial type.”
+
+Nun besitzt `aggrData` die für die eigentlichen Analysen benötigte Form. Von hier beginnend wird ähnlich wie in (Duarte, 2004) vorgegangen.
+
+# Aggregate für midfrontale bzw. linksparietale Elektroden
+
+- entspricht Schritt 3 und 4 der PDF
+
+Midfrontale Elektroden sollen hier 'A6', 'B2', 'B3', 'B7', 'B9', 'B11' sein. 
+
+Linksparietale Elektroden sollen hier 'B23', 'B24', 'B25', 'B29', 'B30', 'B31'* sein.
+
+Die ausgewählten Elektroden sind jeweils die entsprechenden Matches aus Nessler (2001), dessen Elektroden nach dem 10-20-System gelabelt wurden. 
+
+Sollte doch *Elektrodencluster* als zweiter Faktor aufgenommen werden, könnte man die beiden Datensätze durch `merge` zusammenfassen.
+
+```{r midfrontal und linksparietal}
+
+aovData_mid <- aggrData[Channel %in% c('A6', 'B2', 'B3', 'B7', 'B9', 'B11') 
+                    & Time %between% c(300, 500),
+                    .(uV = mean(uV), location = as.factor('midfrontal (T1)')),
+                    by = .(ID, memo)
+                    ]
+
+aovData_left <- aggrData[Channel %in% c('B23', 'B24', 'B25', 'B29', 'B30', 'B31') 
+                     & Time %between% c(500, 800),
+                    .(uV = mean(uV), location = as.factor('linksparietal (T2)')),
+                    by = .(ID, memo)
+                    ]
+
+```
+
+
+# Omnibus rmANOVAs (Schritt 4)
+
+## Statistics
+```{r omnibus anova}
+
+anova_omnibusMid <- aov_car(uV ~ memo + Error(ID/memo), data=aovData_mid)
+anova_omnibusMid <- apa_print(anova_omnibusMid)
+anova_omnibusMid$full_result
+
+anovaData_omnibusLeft <- aov_car(uV ~ memo + Error(ID/memo), data=aovData_left)
+anova_omnibusLeft <- apa_print(anovaData_omnibusLeft)
+anova_omnibusLeft$full_result
+```
+
+## Follow Up
+
+```{r follow up}
+within_fitted_leftMemo <- emmeans(anovaData_omnibusLeft, ~memo) # Follow-Up
+within_fitted_leftMemo <- pairs(within_fitted_leftMemo) %>% apa_print()
+within_fitted_leftMemo$table
+```
+
+## Boxplots
+
+```{r boxplot omnibus aov}
+
+data_midLeft <- rbind(aovData_mid, aovData_left)
+
+boxplot_midLeft <- ggplot(data_midLeft, aes(x=memo, y = uV, fill=memo)) +
+  geom_hline(yintercept = 0, color='grey') +
+  geom_violinhalf(width=.7, alpha=.7) +
+  geom_boxplot(width=.2) +
+  geom_jitter(width=.02,alpha=.4) +
+  facet_grid(location~.) +
+  labs(x='Memorabilität', y=NULL) +
+  scale_x_discrete(name='Memorabilität', labels=c('hoch', 'mittel', 'niedrig'),) +
+  scale_fill_brewer(name='Memorabilität', labels=c('hoch', 'mittel', 'niedrig'), palette = 'Dark2') +
+  apastyle +
+  theme(strip.background = element_rect(fill = '#F2F2F2', color = 'white'))
+
+boxplot_midLeft
+```
+
+## ERPs plotten
+
+```{r erp plot}
+
+# plotData_mid 
+tmp <- aggrData[Channel %in% c('A6', 'B2', 'B3', 'B7', 'B9', 'B11'), 
+                    .(uV = mean(uV), location = as.factor('midfrontal')),
+                    by = .(Time, memo)
+                    ]
+# plotData_left 
+tmp1 <- aggrData[Channel %in% c('B23', 'B24', 'B25', 'B29', 'B30', 'B31'), 
+                    .(uV = mean(uV), location = as.factor('linksparietal')),
+                    by = .(Time, memo)
+                    ]
+plotData_midLeft <- rbind(tmp,tmp1)
+
+plot_erpMidLeft <- ggplot(plotData_midLeft, aes(x = Time, y = uV, fill = memo, colour = memo, lty = memo)) +
+  geom_hline(yintercept = 0, color='grey') +
+  # baseline graphic
+  annotate("rect", xmin = -200, xmax = 0, ymin = -1.5, ymax = .5, 
+           fill = 'grey', alpha = .3) +
+  annotate('text', x = -120, y = -1, label = 'baseline', angle = 90) +
+  # time topoplot area
+  annotate("rect", xmin = 300, xmax = 500, ymin = -1.5, ymax = .5,
+           fill = "grey", alpha = .3) +
+  annotate('text', x = 400, y = -1.2, label = 'T1', angle = 90) +
+  annotate("rect", xmin = 300, xmax = 800, ymin = -1.5, ymax = .5,
+           fill = "grey", alpha = .3) +
+  annotate('text', x = 650, y = -1.2, label = 'T2', angle = 90) +
+  # stimulus onset graphic
+  annotate("segment", x = 0, xend = 0, y = -1.5, yend = 0, colour = "black",
+           lty = 3) + 
+  annotate('text', x = 20, y = -1.2, label = 'Onset', angle = 90) +
+  # smoothed line plot
+  stat_smooth(method = "loess", span = 0.1, se = TRUE,
+              aes(fill = memo), alpha = 0.3) +
+  facet_grid(location ~ .) +
+  # make up
+  scale_x_continuous(breaks = seq(-300, 1000, 300)) +
+  scale_y_continuous() +
+  labs(x='Zeit [ms]', y="EKP [Mikrovolt]") +
+  scale_linetype_manual(name='Memorabilität', labels=c('hoch', 'mittel', 'niedrig'), values = c("solid", "dashed", "dotted")) +
+  scale_color_brewer(name='Memorabilität', labels=c('hoch', 'mittel', 'niedrig'), palette = 'Dark2') +
+  scale_fill_brewer(name='Memorabilität', labels=c('hoch', 'mittel', 'niedrig'), palette = 'Dark2') +
+  apastyle +
+  theme(strip.text = element_blank())
+
+plot_erpMidLeft
+plot_erpBox <- ggarrange(plot_erpMidLeft, boxplot_midLeft, common.legend = T, legend = 'bottom', labels = c('A', 'B'), font.label = list(size = 12))
+plot_erpBox
+```
+
+# ANOVA pro Elektrode (hier: linksparietale Elektroden)
+
+- entspricht Schritt 5 der PDF
+
+```{r planned comparisons}
+
+## Elektrode B23
+anovaData_LeftB23 <- aov_car(uV ~ memo + Error(ID/memo), 
+                              data=
+                                aggrData[Channel == 'B23' & Time %between% c(500, 800),
+                                .(uV = mean(uV)),
+                                by = .(ID, memo)
+                                ])
+anova_LeftB23 <- apa_print(anovaData_LeftB23)
+anova_LeftB23$statistic$memo
+
+## Elektrode B24
+anova_LeftB24 <- aov_car(uV ~ memo + Error(ID/memo), 
+                              data=
+                                aggrData[Channel == 'B24' & Time %between% c(500, 800),
+                                .(uV = mean(uV)),
+                                by = .(ID, memo)
+                                ])
+anova_LeftB24 <- apa_print(anova_LeftB24)
+anova_LeftB24$statistic$memo
+
+## Elektrode B25
+anova_LeftB25 <- aov_car(uV ~ memo + Error(ID/memo), 
+                              data=
+                                aggrData[Channel == 'B25' & Time %between% c(500, 800),
+                                .(uV = mean(uV)),
+                                by = .(ID, memo)
+                                ])
+anova_LeftB25 <- apa_print(anova_LeftB25)
+anova_LeftB25$statistic$memo
+
+## Elektrode B29
+anova_LeftB29 <- aov_car(uV ~ memo + Error(ID/memo), 
+                              data=
+                                aggrData[Channel == 'B29' & Time %between% c(500, 800),
+                                .(uV = mean(uV)),
+                                by = .(ID, memo)
+                                ])
+anova_LeftB29 <- apa_print(anova_LeftB29)
+anova_LeftB29$statistic$memo
+
+## Elektrode B30
+anova_LeftB30 <- aov_car(uV ~ memo + Error(ID/memo), 
+                              data=
+                                aggrData[Channel == 'B30' & Time %between% c(500, 800),
+                                .(uV = mean(uV)),
+                                by = .(ID, memo)
+                                ])
+anova_LeftB30 <- apa_print(anova_LeftB30)
+anova_LeftB30$statistic$memo
+
+## Elektrode B31
+anova_LeftB31 <- aov_car(uV ~ memo + Error(ID/memo), 
+                              data=
+                                aggrData[Channel == 'B31' & Time %between% c(500, 800),
+                                .(uV = mean(uV)),
+                                by = .(ID, memo)
+                                ])
+anova_LeftB31 <- apa_print(anova_LeftB31)
+anova_LeftB31$statistic$memo
+```
+
+# Follow-up
+
+Tests nur mit signifikanten Elektroden
+
+## B23-Elektrode
+```{r follow up B23}
+within_fitted_leftB23 <- emmeans(anovaData_LeftB23, ~memo) # Follow-Up
+within_fitted_leftB23 <- pairs(within_fitted_leftB23) %>%  apa_print()
+within_fitted_leftB23$table
+
+```
+
+
+## ERPs plotten
+
+```{r erp plot channels}
+
+plotData_left <- aggrData[Channel %in% c('B23', 'B24', 'B25', 'B29', 'B30', 'B31'), 
+                    .(uV = mean(uV)),
+                    by = .(Time, Channel, memo)
+                    ]
+
+plot_erpLeft <- ggplot(plotData_left, aes(x = Time, y = uV, fill = memo, colour = memo, lty = memo)) +
+  geom_hline(yintercept = 0, color='grey') +
+  # baseline graphic
+  annotate("rect", xmin = -200, xmax = 0, ymin = -1.5, ymax = 1, 
+           fill = 'grey', alpha = .3) +
+  annotate('text', x = -120, y = -1, label = 'baseline', angle = 90) +
+  # time topoplot area
+  annotate("rect", xmin = 500, xmax = 800, ymin = -2, ymax = 1,
+           fill = "grey", alpha = .3) +
+  annotate('text', x = 650, y = -1.2, label = 'T2', angle = 90) +
+  # stimulus onset graphic
+  annotate("segment", x = 0, xend = 0, y = -1.5, yend = 0, colour = "black",
+           lty = 3) + 
+  annotate('text', x = 20, y = -1.2, label = 'Onset', angle = 90) +
+  # smoothed line plot
+  stat_smooth(method = "loess", span = 0.1, se = TRUE,
+              aes(fill = memo), alpha = 0.3) +
+  facet_wrap(Channel ~ .) +
+  # make up
+  scale_x_continuous(breaks = seq(-300, 1000, 300)) +
+  scale_y_continuous() +
+  labs(x='Zeit [ms]', y="EKP [Mikrovolt]") +
+  scale_linetype_manual(name='Memorabilität', labels=c('hoch', 'mittel', 'niedrig'), values = c("solid", "dashed", "dotted")) +
+  scale_color_brewer(name='Memorabilität', labels=c('hoch', 'mittel', 'niedrig'), palette = 'Dark2') +
+  scale_fill_brewer(name='Memorabilität', labels=c('hoch', 'mittel', 'niedrig'), palette = 'Dark2') +
+  apastyle +
+  theme(legend.position = 'bottom')
+  
+plot_erpLeft
+```
+
+
+```{r saving enviroment, include = F}
+
+# Saving Enviromenment for Manuscript
+save.image('Auswertung_EEG_memo.RData')
+```

@@ -1,0 +1,568 @@
+---
+title: 'EEG-Analyse, Familiarity- und Recollection EKP-Old-New-Effekt'
+author: 'Veasch'
+date: '16. Januar, 2020'
+output:
+  html_document:
+    toc: yes
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(dev = 'svg', dpi = 300, warning = FALSE,
+                      dev.args = list(bg = 'transparent'))
+# options(tinytex.verbose = TRUE) # if an error occurs when compiling a LaTeX to PDF, and the error message is not clear, try this code (only running it once should be enough)
+
+```
+
+Dieses Skript soll folgende Hypothese meiner Masterarbeit *Das Zusammenspiel von Familiarity, Recollection und Memorabilität* überprüfen:
+
+* Hypothese 1b: *Familiarity*- und *recollection*-basierte Wiedererkennung sind mit qualitativ distinkten (d.h. topographischen und zeitlichen) EKP-Old-New-Effekten (ON-Effekten) assoziiert (Zwei-Prozess-Hypothese).
+
+Hiermit ist der Klassiker der ON-Effekte gemeint, der schon viel erforscht wurde. Die folgende Analyse hangelt sich an der Auswertung entlang, wie sie in (Duarte, 2004) durchgeführt wurde. 
+
+Im Verzeichnis, in dem sich dieses Skript befindet, wird in der Datei `Auswertung_famrec.docx` die Auswertung Schritt für Schritt beschrieben. 
+
+```{r packages, include=FALSE}
+# install packages, if necessary
+if (!require('pacman')) install.packages('pacman')
+pacman::p_load(data.table, tidyverse, car, afex, plyr, ez, apaTables, stringr, ggpubr, knitr, see, ggstatsplot, emmeans) # pacman firstly checks for missing packages, and installs them, if any are missing
+
+# install devtools package if necessary
+if(!'devtools' %in% rownames(installed.packages())) install.packages('devtools')
+
+# install the stable development version from GitHub
+if(!'papaja' %in% rownames(installed.packages())) devtools::install_github('crsh/papaja')
+
+# loading packages
+pkgs <- c('data.table', 'tidyverse', 'car','afex', 'plyr','ez', 'apaTables', 'stringr', 'papaja', 'ggpubr', 'knitr', 'see', 'ggstatsplot', 'emmeans')
+sapply(pkgs, require, character.only = TRUE)
+
+# create parameters for special ggplot layer, which changes the look of the plots into an APA-conform appearance
+apastyle <- theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
+panel.background = element_blank(), axis.line = element_line(colour = 'black'), legend.position='right', strip.background = element_rect(fill = '#F2F2F2', color = 'white'), strip.text = element_text(face = 'bold'))
+```
+
+# Daten vorbereiten
+## Daten importieren
+
+In MatLab fand die Vorverarbeitung statt. Es werden hier drei Datensätze importiert. Sie enthalten - getrennt nach den Faktorstufen von *Urteil* (remember vs. know vs. new) - jeweils die Variablen `ID, Channel, Time` und `uV`. In der Literatur werden meist nur die korrekten Urteile verwendet, auf dessen Basis die EKP-Unterschiede später getestet werden.  Die Datensätze heißen `remcor`, `knowcor` und `newcor` (cor: correct answer).
+
+```{r importing data}
+
+file.names <- dir(pattern = 'flatdata') # variable that contains flatdata file names per condition
+
+for(icond in 1:length(file.names)){
+  file <- fread(file.names[icond])
+  var.name <- sapply(strsplit(file.names[icond], split='_', fixed=TRUE), function(x) (x[2])) 
+  assign(str_replace(var.name, '.csv', ''), file)
+}
+
+rm(file)
+
+str(newcor)
+```
+
+## Kleine Anpassungen
+
+Die Variablen `ID` und `Channel` werden in Faktoren konvertiert.
+
+```{r tiny adjustments, echo = T, results = 'hide'}
+
+remcor[, ':=' (ID = as.factor(ID),
+               Channel = as.factor(Channel)
+               )]
+
+knowcor[, ':=' (ID = as.factor(ID),
+               Channel = as.factor(Channel)
+               )]
+
+newcor[, ':=' (ID = as.factor(ID),
+               Channel = as.factor(Channel)
+               )]
+```
+
+## Datensätze zusammenbinden und shapen
+
+Die drei Datensätze (ab hier: subsets) werden so kombiniert, dass man sie später zur Berechnung verschiedener rmANOVAs verwenden kann. Am Ende soll es einen großen Datensatz `aggrData` geben, der die Variablen `ID, Channel, Time, RK` und `uV` beinhaltet, wobei `RK` den Faktor `Urteil` kodiert.
+
+Des Weiteren werden die drei subsets so gefiltert, dass nur noch Daten von -250 ms bis 1000 ms verwendet werden, da dieses Intervall die für die Hypothesen relevanten Zeitpunkte enthält (Schritt 2; familiarity bei 300-500 ms und recollection bei 500-800 ms.). Zuletzt werden nur Daten behalten, die von den A- oder B-Elektroden kommen (`VEOG, HEOG`, usw. werden rausgenommen).
+
+```{r anova format}
+
+knowcor[, ':=' (RK = as.factor('know'))]
+knowcor <- knowcor[Time >= -250 & Time <= 1000]
+
+newcor[, ':=' (RK = as.factor('new'))]
+newcor <- newcor[Time >= -250 & Time <= 1000]
+
+remcor[, ':=' (RK = as.factor('remember'))]
+remcor <- remcor[Time >= -250 & Time <= 1000]
+
+tmp <- rbind(knowcor, newcor, remcor)
+
+tmp$Channel %>% levels()
+
+# remove channels that are not needed
+tmp1 <- tmp[grep('^A', Channel),]
+tmp2 <- tmp[grep('^B', Channel),]
+aggrData <- rbind(tmp1, tmp2)
+aggrData <- aggrData[, .(ID, Channel = droplevels(Channel), Time, RK = factor(RK, levels = c('new', 'know', 'remember')), uV)]
+
+aggrData$Channel %>% levels()
+
+# baseline correction (-200 to 0 ms)
+aggrData[Time %between% c(-200,0), baselineValue := mean(uV), by = .(ID, Channel, RK)]
+aggrData[, baselineValue := unique(na.omit(baselineValue)), by = .(ID, Channel, RK)]
+aggrData[, uV := uV - baselineValue]
+aggrData[, baselineValue := NULL]
+
+# cleaning environment
+rm(list=ls(pattern='tmp'))
+rm(list=ls(pattern='cor')) # subsets aren't needed anymore
+
+aggrData %>% summary()
+aggrData %>% str()
+```
+
+## Ausschluss von Probanden (Schritt 1)
+
+Wie in Duarte (2004) angeben: "At least 10 participants with at least 15 artifact-free trials of that trial type."
+
+```{r data rejection}
+# How many Trials per condition by ID? (data from MatLab)
+ID <- 1:39
+remNTrials <- c(11,10,17,21,26,11,41,23,16,20,10,30,24,21,12,11,24,11,25,14,17,12,3,13,6,26,26,7,13,25,13,9,5,17,11,41,20,34,13)
+knowNTrials <- c(26,20,39,45,24,12,17,20,26,30,39,39,37,37,37,34,10,28,43,47,32,51,12,30,32,36,43,43,29,24,37,38,21,32,20,44,25,21,37)
+newNTrials <- c(51,81,51,63,70,51,87,95,64,76,64,72,47,68,78,83,74,63,73,67,60,71,84,78,72,66,59,57,83,64,74,46,79,77,82,62,85,61,71)
+
+rejectionData <- data.table(ID = ID, remNTrials = remNTrials, knowNTrials = knowNTrials, newNTrials = newNTrials)
+keepIDs <- rejectionData[remNTrials >= 15 & knowNTrials >= 15 & newNTrials >= 15, ID]
+keepIDs  # ID %in% keepIDs
+```
+
+Nun besitzt `aggrData` die für die eigentlichen Analysen benötigte Form. Von hier beginnend wird ähnlich wie in (Duarte, 2004) vorgegangen.
+
+## Aggregate für midfrontale bzw. linksparietale Elektroden
+
+- entspricht Schritt 3 und 4
+
+Midfrontale Elektroden sollen hier 'A6', 'B2', 'B3', 'B8', 'B9', 'B11' sein. 
+
+Linksparietale Elektroden sollen hier 'A29', 'B24','B25', 'B14', 'B15','A28' sein.
+
+Die ausgewählten Elektroden sind jeweils die entsprechenden Matches aus Nessler (2001), dessen Elektroden nach dem 10-20-System gelabelt wurden. 
+
+Sollte doch *Elektrodencluster* als zweiter Faktor aufgenommen werden, könnte man die beiden Datensätze durch `rbind` zusammenfassen.
+
+```{r midfrontal und linksparietal}
+
+aovData_mid <- aggrData[ID %in% keepIDs & Channel %in% c('A6', 'B2', 'B3', 'B8', 'B9', 'B11') 
+                    & Time %between% c(300, 500),
+                    .(uV = mean(uV), location = as.factor('midfrontal (T1)')),
+                    by = .(ID, RK)
+                    ]
+
+aovData_left <- aggrData[ID %in% keepIDs & Channel %in% c('A29', 'B24','B25', 'B14', 'B15','A28') 
+                     & Time %between% c(500, 800),
+                    .(uV = mean(uV), location = as.factor('linksparietal (T2)')),
+                    by = .(ID, RK)
+                    ]
+
+aovData_midLeft <- rbind(aovData_mid, aovData_left)
+```
+
+
+
+# Analysen
+## Deskriptive Statistiken
+
+```{r descriptives}
+midLeftPretty <- aovData_midLeft[, .(Proband = ID, 
+                           Urteil = RK, 
+                           Cluster = location, 
+                           uV)]
+levels(midLeftPretty$Urteil) <- c('neu', 'know', 'remember')
+levels(midLeftPretty$Cluster) <- c('midfrontal', 'linksparietal')
+descr_EEG <- midLeftPretty[, .(M = mean(uV), SD = sd(uV)), by = .(Urteil, Cluster)] %>% printnum()
+
+descr_EEG <- reshape(descr_EEG, idvar = "Cluster", timevar = "Urteil", direction = "wide")
+descr_EEG <- descr_EEG %>% as.data.table
+descr_EEG <- descr_EEG[,.(Cluster, M.neu, SD.neu, M.know, SD.know, M.remember, SD.remember)]
+descr_EEG
+```
+
+## Überprüfungen der Voraussetzungen
+
+1. Ausreißer
+
+Daten sollten auf Ausreißer überprüft werden (siehe Kapitel "Omnibus Boxplots"). Keine Ausreißer.
+
+2. Normalverteilung
+
+Shapiro-Wilk: Test sollte nicht signifikant werden, damit eine Normalverteilung angenommen werden kann.
+
+```{r shapiro wilk test}
+shapiroOmnibus <- aovData_midLeft[,.(p.value = shapiro.test(uV)$p.value), by = .(RK, location)]
+shapiroOmnibus
+
+# qqPlots nach Urteil und location
+
+ggplot(aovData_midLeft, aes(sample = uV)) +
+  geom_qq(alpha=.7, shape=16) +
+  geom_qq_line() +
+  labs(x='theoretisch', y='beobachtet') +
+  facet_grid(location ~ RK) +
+  apastyle
+```
+
+3. Sphärizität
+
+Die folgende ANOVA-Funktion `aov_car` überprüft automatisch auf Verletzung der Sphärizität und zeigt im Output die verwendete Korrektur an. Hier ist es die Greenhouse-Geisser-Korrektur.
+
+## Hauptanalysen
+### Omnibus rmANOVAs (Schritt 4)
+```{r omnibus anova}
+anovaData_omnibusMid <- aov_car(uV ~ RK + Error(ID/RK), data=aovData_mid)
+anova_omnibusMid <- apa_print(anovaData_omnibusMid)
+anovaData_omnibusMid
+anovaData_omnibusLeft <- aov_car(uV ~ RK + Error(ID/RK), data=aovData_left)
+anova_omnibusLeft <- apa_print(anovaData_omnibusLeft)
+anovaData_omnibusLeft
+```
+
+#### Follow-up: Paarweise Vergleiche (wenn ANOVA signifikant)
+
+```{r pairwise comparisons}
+
+within_fitted_midRK <- emmeans(anovaData_omnibusMid, ~ RK, model = 'multivariate') # Follow-Up
+within_fitted_midRK <- pairs(within_fitted_midRK) %>% apa_print()
+within_fitted_midRK$table
+
+within_fitted_leftRK <- emmeans(anovaData_omnibusLeft, ~ RK, model = 'multivariate') # Follow-Up
+within_fitted_leftRK <- pairs(within_fitted_leftRK) %>% apa_print()
+within_fitted_leftRK$table
+```
+
+#### Omnibus Boxplots
+
+```{r boxplot omnibus aov}
+boxplot_midLeft <- ggplot(aovData_midLeft, aes(x=RK, y = uV, fill=RK)) +
+  geom_hline(yintercept = 0, color='grey') +
+  geom_violinhalf(width=.7, alpha=.7) +
+  geom_boxplot(width=.2) +
+  geom_jitter(width=.02,alpha=.4) +
+  facet_grid(location ~.) +
+  labs(x='Urteil', y=NULL) +
+  scale_x_discrete(name='Urteil', labels=c('neu', 'know', 'remember')) +
+  scale_fill_brewer(name='Urteil', labels=c('neu', 'know', 'remember'), palette = 'Dark2') +
+  apastyle
+
+boxplot_midLeft
+```
+
+#### Omnibus ERPs
+
+```{r erp plot}
+
+# plotData_mid 
+tmp <- aggrData[ID %in% keepIDs & Channel %in% c('A6', 'B2', 'B3', 'B8', 'B9', 'B11'), 
+                    .(uV = mean(uV), location = as.factor('midfrontal')),
+                    by = .(Time, RK)
+                    ]
+# plotData_left 
+tmp1 <- aggrData[ID %in% keepIDs & Channel %in% c('A29', 'B24','B25', 'B14', 'B15','A28'), 
+                    .(uV = mean(uV), location = as.factor('linksparietal')),
+                    by = .(Time, RK)
+                    ]
+plotaovData_midLeft <- rbind(tmp,tmp1)
+
+plot_erpML <- ggplot(plotaovData_midLeft, aes(x = Time, y = uV, fill = RK, colour = RK, lty = RK)) +
+  geom_hline(yintercept = 0, color='grey') +
+  geom_vline(xintercept = 0, color='grey') +
+  # baseline graphic
+  #annotate("rect", xmin = -200, xmax = 0, ymin = -4, ymax = 4, 
+   #        fill = 'grey', alpha = .3) +
+  #annotate('text', x = -100, y = -2, label = 'baseline', angle = 90) +
+  # time topoplot area
+  annotate("rect", xmin = 300, xmax = 500, ymin = -6, ymax = 0,
+           fill = "grey", alpha = .3) +
+  annotate('text', x = 400, y = -2, label = 'T1', angle = 90) +
+  annotate("rect", xmin = 500, xmax = 800, ymin = 0, ymax = 4,
+           fill = "grey", alpha = .3) +
+  annotate('text', x = 650, y = 3, label = 'T2', angle = 90) +
+  # stimulus onset graphic
+  #annotate("segment", x = 0, xend = 0, y = 0, yend = -5, colour = "black",
+   #        lty = 3) + 
+  #annotate('text', x = 10, y = -5, label = 'Onset', angle = 90) +
+  # smoothed line plot
+  stat_smooth(method = "loess", span = 0.1, se = TRUE,
+              aes(fill = RK), alpha = 0.3) +
+  facet_grid(location ~ .) +
+  # make up
+  scale_x_continuous(breaks = seq(-300, 1000, 300)) +
+  scale_y_continuous() +
+  labs(x='Zeit [ms]', y=expression(paste('EKP [', mu, 'V]'))) +
+  scale_linetype_manual(name='Urteil', labels=c('neu', 'know', 'remember'), values = c("solid", "dashed", "dotted")) +
+  scale_color_brewer(name='Urteil', labels=c('neu', 'know', 'remember'), palette = 'Dark2') +
+  scale_fill_brewer(name='Urteil', labels=c('neu', 'know', 'remember'), palette = 'Dark2') +
+  apastyle +
+  theme(strip.text = element_blank())
+
+plot_erpML
+plot_ErpBox <- ggarrange(plot_erpML, boxplot_midLeft, common.legend = T, legend = 'bottom', labels = c('A', 'B'), font.label = list(size = 12))
+plot_ErpBox
+```
+
+### ANOVA pro Elektrode (wenn signifikant)
+
+- entspricht Schritt 5 der PDF
+
+```{r electrode aov}
+# midfrontale Vergleiche
+
+## Elektrode A6
+anova_MidA6 <- aov_car(uV ~ RK + Error(ID/RK), 
+                              data=
+                                aggrData[ID %in% keepIDs & Channel == 'A6' & Time %between% c(300, 500),
+                                .(uV = mean(uV)),
+                                by = .(ID, RK)
+                                ])
+anova_MidA6 <- apa_print(anova_MidA6)
+anova_MidA6$statistic$RK
+
+## Elektrode B2
+anova_MidB2 <- aov_car(uV ~ RK + Error(ID/RK), 
+                              data=
+                                aggrData[ID %in% keepIDs & Channel == 'B2' & Time %between% c(300, 500),
+                                .(uV = mean(uV)),
+                                by = .(ID, RK)
+                                ])
+anova_MidB2 <- apa_print(anova_MidB2)
+anova_MidB2$statistic$RK
+
+## Elektrode B3
+anova_MidB3 <- aov_car(uV ~ RK + Error(ID/RK), 
+                              data=
+                                aggrData[ID %in% keepIDs & Channel == 'B3' & Time %between% c(300, 500),
+                                .(uV = mean(uV)),
+                                by = .(ID, RK)
+                                ])
+anova_MidB3 <- apa_print(anova_MidB3)
+anova_MidB3$statistic$RK
+
+## Elektrode B8
+anova_MidB8 <- aov_car(uV ~ RK + Error(ID/RK), 
+                              data=
+                                aggrData[ID %in% keepIDs & Channel == 'B8' & Time %between% c(300, 500),
+                                .(uV = mean(uV)),
+                                by = .(ID, RK)
+                                ])
+anova_MidB8 <- apa_print(anova_MidB8)
+anova_MidB8$statistic$RK
+
+## Elektrode B9
+anova_MidB9 <- aov_car(uV ~ RK + Error(ID/RK), 
+                              data=
+                                aggrData[ID %in% keepIDs & Channel == 'B9' & Time %between% c(300, 500),
+                                .(uV = mean(uV)),
+                                by = .(ID, RK)
+                                ])
+anova_MidB9 <- apa_print(anova_MidB9)
+anova_MidB9$statistic$RK
+
+## Elektrode B11
+anova_MidB11 <- aov_car(uV ~ RK + Error(ID/RK), 
+                              data=
+                                aggrData[ID %in% keepIDs & Channel == 'B11' & Time %between% c(300, 500),
+                                .(uV = mean(uV)),
+                                by = .(ID, RK)
+                                ])
+anova_MidB11 <- apa_print(anova_MidB11)
+anova_MidB11$statistic$RK
+
+
+# linksparietale Vergleiche
+
+## Elektrode A28
+anovaData_LeftA28 <- aov_car(uV ~ RK + Error(ID/RK), 
+                              data=
+                                aggrData[ID %in% keepIDs & Channel == 'A28' & Time %between% c(500, 800),
+                                .(uV = mean(uV)),
+                                by = .(ID, RK)
+                                ])
+anova_LeftA28 <- apa_print(anovaData_LeftA28)
+anova_LeftA28$statistic$RK
+
+## Elektrode B24
+anova_LeftB24 <- aov_car(uV ~ RK + Error(ID/RK), 
+                              data=
+                                aggrData[ID %in% keepIDs & Channel == 'B24' & Time %between% c(500, 800),
+                                .(uV = mean(uV)),
+                                by = .(ID, RK)
+                                ])
+anova_LeftB24 <- apa_print(anova_LeftB24)
+anova_LeftB24$statistic$RK
+
+## Elektrode B25
+anova_LeftB25 <- aov_car(uV ~ RK + Error(ID/RK), 
+                              data=
+                                aggrData[ID %in% keepIDs & Channel == 'B25' & Time %between% c(500, 800),
+                                .(uV = mean(uV)),
+                                by = .(ID, RK)
+                                ])
+anova_LeftB25 <- apa_print(anova_LeftB25)
+anova_LeftB25$statistic$RK
+
+## Elektrode A29
+anova_LeftA29 <- aov_car(uV ~ RK + Error(ID/RK), 
+                              data=
+                                aggrData[ID %in% keepIDs & Channel == 'A29' & Time %between% c(500, 800),
+                                .(uV = mean(uV)),
+                                by = .(ID, RK)
+                                ])
+anova_LeftA29 <- apa_print(anova_LeftA29)
+anova_LeftA29$statistic$RK
+
+## Elektrode B14
+anova_LeftB14 <- aov_car(uV ~ RK + Error(ID/RK), 
+                              data=
+                                aggrData[ID %in% keepIDs & Channel == 'B14' & Time %between% c(500, 800),
+                                .(uV = mean(uV)),
+                                by = .(ID, RK)
+                                ])
+anova_LeftB14 <- apa_print(anova_LeftB14)
+anova_LeftB14$statistic$RK
+
+## Elektrode B15
+anova_LeftB15 <- aov_car(uV ~ RK + Error(ID/RK), 
+                              data=
+                                aggrData[ID %in% keepIDs & Channel == 'B15' & Time %between% c(500, 800),
+                                .(uV = mean(uV)),
+                                by = .(ID, RK)
+                                ])
+anova_LeftB15 <- apa_print(anova_LeftB15)
+anova_LeftB15$statistic$RK
+
+tmp <- anova_MidA6$table %>% as.data.table()
+tmp1 <- anova_MidB2$table %>% as.data.table()
+tmp2 <- anova_MidB3$table %>% as.data.table()
+tmp3 <- anova_MidB8$table %>% as.data.table()
+tmp4 <- anova_MidB9$table %>% as.data.table()
+tmp5 <- anova_MidB11$table %>% as.data.table()
+
+tmp <- rbind(tmp, tmp1, tmp2, tmp3, tmp4, tmp5)
+tmp[, Effect := 'Urteil']
+
+Elektrode <- c('A6', 'B2', 'B3', 'B8', 'B9', 'B11')
+anova_MidElecs <- tmp[, .(Elektrode = Elektrode, Effekt = Effect, F, df1, df2, MSE, p, ges)]
+```
+
+#### Follow-up: Paarweise Vergleiche (Schritt 6)
+
+Tests nur mit signifikanten Elektroden. Bsp.:
+
+```{r follow up A28}
+within_fitted_leftA28 <- emmeans(anovaData_LeftA28, ~ RK, model = 'multivariate') # Follow-Up
+within_fitted_leftA28 <- pairs(within_fitted_leftA28) %>%  apa_print()
+within_fitted_leftA28$table
+```
+
+#### ERPs plotten
+
+```{r erp plot channels}
+
+plotData_mid <- aggrData[ID %in% keepIDs & Channel %in% c('A6', 'B2', 'B3', 'B8', 'B9', 'B11'), 
+                    .(uV = mean(uV)),
+                    by = .(Time, RK, Channel)
+                    ]
+
+plot_erpMid <- ggplot(plotData_mid, aes(x = Time, y = uV, fill = RK, colour = RK, lty = RK)) +
+  geom_hline(yintercept = 0, color='grey') +
+  geom_vline(xintercept = 0, color='grey') +
+  # baseline graphic
+  #annotate("rect", xmin = -200, xmax = 0, ymin = -4, ymax = .75,
+   #        fill = "grey", alpha = .3) +
+  #annotate('text', x = -100, y = -2, label = 'baseline', angle = 90) +
+  # time topoplot area
+  annotate("rect", xmin = 300, xmax = 500, ymin = -6, ymax = 0,
+           fill = "grey", alpha = .3) +
+  annotate('text', x = 400, y = -2, label = 'T1', angle = 90) +
+  # stimulus onset graphic
+  #annotate("segment", x = 0, xend = 0, y = 0, yend = -5, colour = "black",
+   #        lty = 3) + 
+  #annotate('text', x = 10, y = -5, label = 'Onset', angle = 90) +
+  # smoothed line plot
+  stat_smooth(aes(fill = RK), method = "loess", span = 0.1, se = TRUE, alpha = 0.3) +
+  facet_wrap(Channel ~ .) +
+  # make up
+  scale_x_continuous(breaks = seq(-300, 1000, 300)) +
+  scale_y_continuous(breaks = seq(2, -6,  -1), limits = c(-6, 1.2)) +
+  labs(x='Zeit [ms]', y=expression(paste('EKP [', mu, 'V]'))) +
+  scale_linetype_manual(name='Urteil', labels=c('neu', 'know', 'remember'), values = c("solid", "dashed", "dotted")) +
+  scale_color_brewer(name='Urteil', labels=c('neu', 'know', 'remember'), palette = 'Dark2') +
+  scale_fill_brewer(name='Urteil', labels=c('neu', 'know', 'remember'), palette = 'Dark2') +
+  apastyle +
+  theme(legend.position = 'bottom')
+  
+plot_erpMid
+
+plotData_left <- aggrData[ID %in% keepIDs & Channel %in% c('A29', 'B24','B25', 'B14', 'B15', 'A28'), 
+                    .(uV = mean(uV)),
+                    by = .(Time, RK, Channel)
+                    ]
+
+plot_erpLeft <- ggplot(plotData_left, aes(x = Time, y = uV, fill = RK, colour = RK, lty = RK)) +
+  geom_hline(yintercept = 0, color='grey') +
+  geom_vline(xintercept = 0, color='grey') +
+  # baseline graphic
+  #annotate("rect", xmin = -200, xmax = 4, ymin = 0, ymax = 10,
+   #        fill = "grey", alpha = .3) +
+  #annotate('text', x = -100, y = 5, label = 'baseline', angle = 90) +
+  # time topoplot area
+  annotate("rect", xmin = 500, xmax = 800, ymin = 0, ymax = 10,
+           fill = "grey", alpha = .3) +
+  annotate('text', x = 650, y = 5, label = 'T2', angle = 90) +
+  # stimulus onset graphic
+  #annotate("segment", x = 0, xend = 0, y = 0, yend = 5, colour = "black",
+   #        lty = 3) + 
+  #annotate('text', x = 10, y = 6.5, label = 'Onset', angle = 90) +
+  # smoothed line plot
+  stat_smooth(aes(fill = RK), method = "loess", span = 0.1, se = TRUE, alpha = 0.3) +
+  facet_wrap(Channel ~ .) +
+  # make up
+  scale_x_continuous(breaks = seq(-300, 1000, 300)) +
+  scale_y_continuous() +
+  labs(x='Zeit [ms]', y=expression(paste('EKP [', mu, 'V]'))) +
+  scale_linetype_manual(name='Urteil', labels=c('neu', 'know', 'remember'), values = c("solid", "dashed", "dotted")) +
+  scale_color_brewer(name='Urteil', labels=c('neu', 'know', 'remember'), palette = 'Dark2') +
+  scale_fill_brewer(name='Urteil', labels=c('neu', 'know', 'remember'), palette = 'Dark2') +
+  apastyle +
+  theme(legend.position = 'bottom')
+  
+plot_erpLeft
+```
+
+### Daten für Topoplots extrahieren
+```{r topoData}
+# midfrontal
+topoData_mid <- aggrData[ID %in% keepIDs &
+                       Time %between% c(300, 500),
+                     .(uV = mean(uV)),
+                     by = .(Channel, RK)
+                    ]
+write.csv(topoData_mid, 'topoData_mid.csv')
+## leftparietal
+topoData_left <- aggrData[ID %in% keepIDs &
+                       Time %between% c(500, 800),
+                     .(uV = mean(uV)),
+                     by = .(Channel, RK)
+                    ]
+write.csv(topoData_left, 'topoData_left.csv')
+```
+
+```{r saving enviroment}
+
+# Saving Enviromenment for Manuscript
+save.image('Auswertung_EEG.RData')
+```

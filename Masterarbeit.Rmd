@@ -1,0 +1,692 @@
+---
+title             : "Das Zusammenspiel von Familiarity, Recollection und Memorabilität"
+shorttitle        : "Familiarity, Recollection und Memorabilität"
+
+author: 
+  - name          : "Veasch"
+    affiliation   : 
+    corresponding : yes    # Define only one corresponding author
+    address       : "XX. 23, XXXXX M."
+    email         : "veasch@uni-dream.de"
+
+affiliation:
+  - id            : 
+    institution   : "Dream Uni"
+  - id            : 
+    institution   : "Fachbereich Psychologie"
+  - id            : 
+    institution   : "16. Januar, 2020"
+
+author_note: >
+  Masterarbeit im Studiengang Psychologie. Matrikelnummer: XXXXXX 
+  Erstgutachter: M. Sc. NB. Zweitgutachter: Prof. Dr. NB
+
+abstract: |
+  Aktuelle Studien deuten darauf hin, dass die Wiederkennungsleistung von Fotografien vor allem von einer dem Stimulus innewohnenden, intrinsischen Eigenschaft beeinflusst wird: *Memorabilität*. Tendenziell werden über Personen hinweg dieselben Szenen erinnert oder vergessen. Untersuchungen des Wiedererkennungsgedächtnis sind darüber ohne die Berücksichtigung des sog. *Zwei-Prozess-Modells* kaum denkbar, welches zwei distinkte Prozesse (*familiarity* und *recollection*) proklamiert. Um herauszufinden, inwiefern Memorabilität *familiarity* und *recollection* beeinflusst, wurden Ereigniskorrelierte Potenziale während des Experiments aufgenommen. Probanden mussten sich dazu 300 Fotografien unterschiedlichen Ausmaßes an Memorabilität merken, um am nächsten Tag in einem Wiedererkennungstest *remember*- und *know*-Urteile zu fällen. Die Ergebnisse zeigten, dass (a) die Existenz von *familiarity* und *recollection* auf behavioraler Ebene, aber nicht auf neuronaler Ebene nachgewiesen werden konnte, und dass (b) die Höhe der Memorabilität zu einer Verschiebung des Urteilsverhältnis in Richtung von mehr *remember*-Urteilen führte. Dies zeigt, dass Memorabilität eine wichtige Rolle in der Art und Weise spielt, wie Menschen Stimuli wiedererinnern. Außerdem liegt Evidenz vor, dass neuronale *familiarity*- und *recollection*-Effekte nicht über einen Zeitraum von länger als 24 Stunden persistieren.
+  
+  Recent studies suggest that the ability to recognise photographs is, above all, related to an intrinsic property of the stimulus itself - *memorability*. In general, people tend to remember and forget the same pictures, respectively. However, when it comes to recognition memory one has to take into account the *dual-process-model*, which proposes two distinct retrieval processes: *familiarity* and *recollection*. To investigate how memorability is related to familiarity and recollection, in this work we recorded event-related brain potentials during a recognition memory task. Participants studied a total of 300 photographies of different levels of memorability, and were instructed to give remember-know judgments in a task, that was conducted 24 hours later. The results showed (a) that familiarity and recollection patterns were found on a behavioral level, but not on a neural level, and (b) that memorability provoced a shift in the proportion of remember-know judgments, such that more memorable photographs resulted in more likely remember judgements. This demonstrates that memorability plays an important role in the way people recognise stimuli they already have seen once. It also provides some evidence that, in terms of neural activity, familiarity and recollection effects do not persist over a period of 24 hours.
+  
+  <!-- https://tinyurl.com/ybremelq -->
+  
+keywords          : "EEG, EKP, familiarity, recollection, Memorabilität, remember, know"
+
+bibliography      : ["r-references.bib","theoretical_background.bib"]
+
+header-includes:
+ - \usepackage[font={footnotesize, singlespacing}]{caption} # kleine Schriftgröße in den Anmerkungen von Abbildungen
+ - \linespread{1.5} # anderthalbfacher Zeilenabstand im Fließtext
+ - \setlength{\parskip}{8pt} # Abstand nach Absatz
+ - \usepackage{ngerman}
+ - \renewcommand{\abstractname}{Abstract}
+ 
+floatsintext      : yes
+figurelist        : no
+tablelist         : no
+footnotelist      : no
+linenumbers       : no
+mask              : no
+draft             : no
+toc               : yes
+
+documentclass     : "apa6"
+classoption       : "man"
+papersize         : a4
+output            : papaja::apa6_pdf
+---
+
+```{r global settings}
+knitr::opts_chunk$set(include = FALSE, warning = F)
+# options(tinytex.verbose = TRUE) # if an error occurs when compiling a LaTeX to PDF, and the error message is not clear, try this code (only running it once should be enough)
+```
+
+```{r packages and prep}
+# install packages, if necessary
+if (!require('pacman')) install.packages('pacman')
+pacman::p_load(data.table, tidyverse, car, afex, devtools, papaja, magrittr, citr, knitr, ggpubr, psych, magick, grid) # pacman firstly checks for missing packages, and if any are missing, it installs those ones
+
+# install devtools package if necessary
+if(!'devtools' %in% rownames(installed.packages())) install.packages('devtools')
+
+# install the stable development version from GitHub
+if(!'papaja' %in% rownames(installed.packages())) devtools::install_github('crsh/papaja')
+
+# loading packages
+pkgs <- c('data.table', 'tidyverse', 'car','afex', 'papaja', 'magrittr', 'citr', 'knitr', 'ggpubr', 'psych', 'magick', 'grid')
+sapply(pkgs, require, character.only = TRUE)
+
+# load environment of behavioral and EEG data
+load('../Daten/Logfiles/CSV_Files/Auswertung_Behaviorale_Daten.RData') 
+load('../Daten/EEG-Results/Grand_ERP_MemOlaf_D2/Auswertung_EEG.RData') 
+load('../Daten/EEG-Results/Grand_ERP_MemOlaf_D2/Topoplot.RData') 
+#load('../Daten/EEG-Results/Grand_ERP_MemOlaf_D3/Auswertung_EEG_memo.RData') 
+#load('../Daten/EEG-Results/Grand_ERP_MemOlaf_D3/Topoplot_memo.RData') 
+```
+
+\newpage
+
+Im Alltag sind wir ständig verschiedensten visuellen Reizen ausgesetzt. Fotografien nehmen dabei eine besondere Rolle ein. Denn sie begegnen uns in ganz unterschiedlichen Kontexten: in sozialen Netzwerken, in der Werbung, auf Plakaten, in der Zeitung, usw. Aufgrund der schier unendlichen Fülle an neuen Informationen ist es nicht verwunderlich, dass wir uns nicht an jedes der einmal gesehenen Bilder werden erinnern können. Und trotzdem: Welches Bild mehr oder welches Bild weniger einprägsam, *memorabel*, ist, hängt nicht so sehr vom *Auge des Betrachters* ab. Vielmehr deuten jüngere Studien daraufhin, dass die Memorabilität eines Bildes - also die Wahrscheinlichkeit, es wiederzuerkennen - über verschiedene Betrachter hinweg konsistent zu sein scheint [@Bainbridge.2013; @Bainbridge.2017c; @Isola.2014; @Khosla.2015]. Kurz gesagt: Menschen tendieren dazu, dieselben Bilder wiederzuerkennen oder eben zu vergessen. Memorabilität kann somit als eine dem Foto innewohnende, intrinsische Eigenschaft verstanden werden [@Isola.2014].
+
+Darüberhinaus ist in Bezug auf die Wiedererkennung von Stimuli folgende Alltagssituation sicherlich vielen von uns bekannt: An einem schönen Nachmittag entscheidet man sich, ein wenig durch die Straßen zu schlendern. Man begegnet vielen unbekannten Menschen. Aber hin und wieder kann es sein, dass man unerwarteterweise einer Person begegnet, bei der man schlagartig das Gefühl hat, sie irgendwoher zu kennen. Obwohl man sich absolut sicher sein kann, die Person schon einmal gesehen zu haben, ist man dennoch oft nicht in der Lage, zusätzliche Erinnerungen zum zurückliegenden Zusammentreffen abzurufen. Diese Art der Wiedererkennung wird in der Forschung *familiarity* genannt und wurde immmer wieder durch das *butcher-on-the-bus*-Phänomen [@Mandler.1980] veranschaulicht. 
+
+Es ist diese Alltagsbeobachtung, die viele Forscher zu der Annahme veranlasst hat, dass zwei distinkte Prozesse zur Wiedererkennung von Stimuli beitragen könnten (*Zwei-Prozess-Modell*) [@Rugg.2007]: erstens *familiarity* und zweitens *recollection* [@Curran.2000; @Curran.2006; @Duarte.2004; @Duzel.1997; @Rugg.2007; @Wixted.2010]. *Recollection* beschreibt im Allgemeinen die Art von Wiedererkennung, die in der Generierung kontextbezogener, dem Bewusstsein zugänglicher Gedächtnisinhalten resultiert [@Rugg.2007]. In der genannten Alltagssituation würde *recollection* bspw. darin bestehen, dass man neben dem Wissen, die Person zu kennen, sich darüber hinaus daran erinnert, wie er oder sie einen beim letzten Aufeinandertreffen nach der Uhrzeit gefragt hat und wie man sich danach über die aktuelle Verkehrssituation in der Innenstadt unterhalten hat. 
+
+Inwiefern diese beiden Gedächtnisprozesse durch unterschiedlich memorable Fotografien beeinflusst werden, sollte in der vorliegenden Arbeit untersucht werden.
+
+## Memorabilität
+
+Wenn es um die Wiedererkennung von Fotografien geht, dann kann man sich die Frage stellen, von welchen Faktoren die Wiedererkennungsleistung (WL) abhängig ist. Im Folgenden soll gezeigt werden, dass in diesem Zusammenhang *Memorabilität* ein äußerst robuster und weitestgehend unabhängiger Faktor zu sein scheint. Dies ist als Bedingung notwendig, um eine Untersuchung von Effekten von Memorabilität auf *familiarity* und *recollection* zu legitimieren, worauf später eingegangen werden wird.
+
+Memorabilität beschreibt nach @Isola.2014 die Wahrscheinlichkeit, mit der ein einmal gesehenes Bild bei wiederholter Konfrontation wiedererkannt wird. Sie ist daher als Prädiktor für die WL von visuellen Stimuli zu sehen. Dieselben Autoren zeigten zudem, dass Memorabilität als eine dem Bild innewohnende, stabile Eigenschaft verstanden werden kann, die über Betrachter und zeitliche Verzögerung konsistent bleibt. 
+
+### Konsistenz von Memorabilität
+
+Hierzu wandten die Autoren das sog. *repeat detection*-Paradigma an [@Isola.2014]: Probanden sollten sich Sequenzen von 120 Fotografien anschauen, unter welchen bestimmte Stimuli wiederholt auftauchten. Eine solche Wiederholung sollte per Tastendruck angezeigt werden. Das Ausmaß der Memorabilität wurde durch die Hit-Rate operationalisiert, also durch den prozentualen Anteil korrekter Tastendrücke (alt-Urteile) an der Gesamtheit aller wiederholten Stimuli. Im zweiten Schritt wurde die Stichprobe in zwei unabhängige Hälften geteilt und die Spearman-Korrelation der beiden beiden Subsets hinsichtlich der Memorabilitätsscores berechnet. Da diese Korrelation sehr hoch war ($r_s$(663) = .75, $p$ nicht berichtet), gingen die Autoren in Bezug auf Memorabilität von einer hohen Konsistenz über Betrachter hinweg aus [@Isola.2014]. 
+
+Auch eine zeitliche Konsistenz wiesen dieselben Autoren [@Isola.2014] nach, indem sie zeigten, dass Memorabilität nach längeren Pausen relativ stabil zu scheint. Die Korrelation entsprechender Memorabilitätsscores bei einer Verzögerung von etwa 15 distrahierenden Stimuli (nach 36 Sekunden) mit den Scores bei einer Verzögerung von etwa 1000 Stimuli (nach 40 Minuten) war hoch einzustufen ($r_s$(663) = .57, $p$ nicht berichtet).
+
+@Bainbridge.2017a konnte zeigen, dass die Memorabilität von menschlichen Gesichtern über verschiedene Transformationen hinweg konsistent zu sein scheint. Dazu testete sie, ob die Präsentation desselben Gesichts, mit einem anderem Emotionsausdruck oder aus einer anderen Perspektive aufgenommen, einen signifikanten Einfluss auf den Memorabilitätseffekt hatte. Da dies nicht der Fall war, schloss die Autorin, dass Memorabilität ein identitätsspezfisches, personengebundenes Attribut sei, das konsistent über verschiedene Transformationen bestehen bliebe. Memorabilität könnte demnach mit höheren, mehr semantischen Bildeigenschaften assoziiert sein.
+
+### Memorabilität und andere bildspezifische Eigenschaften
+
+Basale Bildeigenschaften wie Farbton, Sättigung, Helligkeitsverhältnisse oder räumliche Frequenz im Gegensatz dazu schienen keinen signifikanten Einfluss auf die Memorabilität zu haben [@Isola.2014; @Khosla.2015].
+
+Dass Memorabilität eine dem Bild innewohnende Eigenschaft zu scheint, begründeteten die Autoren [@Isola.2014] damit, dass etwa die subjektive Einschätzung der Memorabilität die tatsächliche Memorabilität nicht gut prädizierte. Die subjektiven Einschätzungen korrelierten nur niedrig mit den tatsächlichen Scores ($r_s$(28) = -.19, $p$ nicht berichtet bzw. $r_s$(28) = -.02, $p$ nicht berichtet). Auch das Urteil darüber, als wie ästhetisch oder interessant eine Fotografie empfunden wurde, konnte die Memorabilität nicht gut vorhersagen ($r_s$(28) = -.36, $p$ nicht berichtet bzw. $r_s$(28) = -.23, $p$ nicht berichtet).
+
+### Mögliche Zusammenhänge mit anderen Gedächtnisprozessen
+
+@Bainbridge.2017c zeigte, dass Memorabilität unabhängig von *bottom-up*- und *top-down*-Aufmerksamkeitsprozessen zu sein scheint, was für die Existenz von Memorabilität als größtenteils unabhängigen Faktor in Bezug auf die Wiedererkennung von Stimuli spricht. 
+
+Im ersten Fall (*bottom-up*-Prozesse) war die zugrunde liegende Annahme, dass hoch memorable Fotos mehr Aufmerksamkeit auf sich ziehen müssten, weil sie zum Beispiel von eher emotionalem Inhalt sein könnten. In einem Experiment, in dem räumliches Cueing (mittels hoch memorabler Fotos) angewandt wurde, sollte, mit dieser These einhergehend, gezeigt werden, dass die Reaktionszeiten (RTs) für *Targets*, die an der gecueten Stelle im Bildschirm auftauchten, schneller erfasst würden, als wenn das *Target* an der ungecueten Stelle auftauchte. Da @Bainbridge.2017c dies nicht nachweisen konnte, schloss sie, dass hoch memorable Bilder nicht gleichzeitig mehr Aufmerksamkeit auf sich ziehen, was sich andernfalls typischerweise in kürzeren RTs geäußert hätte. 
+
+Im zweiten Fall (*top-down*--Prozesse) konnte gezeigt werden, dass weder ein instruiertes, intentionales Vergessen bzw. Sich-Merken von Fotos noch die Manipulation der Verarbeitungstiefe dazu führten, dass jene Faktoren einen Einfluss auf die Memorabilitätseffekte auf die WL hatten [@Bainbridge.2017c]. Es konnte also kein Zusammenhang zwischen kognitiver Kontrolle und Memorabilität sowie zwischen Verarbeitungstiefe und Memorabiltät nachgewiesen werden.
+
+### Memorabilität als unabhängiger und konsistenter Faktor
+
+In den vorangeganenen Abschnitten sollte gezeigt werden, dass Memorabilität erstens ein robuster Faktor zu sein scheint, der nur geringe Zusammenhänge mit anderen Faktoren aufweist, die auch zur Wiedererinnerung beitragen könnten. So lässt sich Memorabilität nicht gut durch basale Bildeigenschaften wie wie Farbton, Sättigung, Helligkeitsverhältnisse oder räumliche Frequenz erklären [@Isola.2014; @Khosla.2015]. Auch subjektive Urteile über die Memorabilität, den ästhetischen Grad oder die Interessantheit eines Bildes wiesen geringe Zusammenhänge mit Memorabilität auf [@Isola.2014]. 
+
+Zuletzt wurde gezeigt, dass - wie man annehmen könnte - hoch memorable Bilder nicht zwangsläufig aufmerksamkeitsheischender sind als weniger memorable Bilder [@Bainbridge.2017c]. Darüber hinaus konnten Bilder in ihren Tendenzen, ob sie weniger oder memorabel sind, nicht durch intentionale Aufmerksamkeitsprozesse (Verarbeitungstiefe, intentionales Vergessen) substanziell verändert werden [@Bainbridge.2017c].
+
+Außerdem wurde gezeigt, dass Memorabilität über Betrachter, Zeit und Gesichtstransformationen hinweg konsistent zu sein scheint [@Bainbridge.2017a, @Isola.2014]. 
+
+Die Befunde deuten darauf hin, dass die im Folgenden beschriebenen Gedächtnisprozesse (*familiarity* und *recollection*) durch die Berücksichtigung von Memorabilität zu einem besseren Verständnis derselben führen können.
+
+## Das Wiedererkennungsgedächtnis in den Neurowissenschaften
+
+Bisher wurde gezeigt, dass der stimulusgetriebene Faktor *Memorabilität* eine beachtliche Rolle bei der Wiedererkennung bereits gesehener Stimuli einnimmt. Im Folgenden soll der Teil der Gedächtnisforschung näher betrachtet werden, der sich mit den neuronalen Prozessen während der Enkodierung bereits gesehener Stimuli befasst. In diesem Zusammenhang wurde immer wieder über die Beteiligung zweier distinkter Prozesse diskutiert, auf denen das sog. *Zwei-Prozess-Modell* aufbaut [@Rugg.2007]. Um dieses Modell zu verstehen, wird zunächst einmal auf den typischen Aufbau von Untersuchungen in diesem Forschungsfeld eingegangen.
+
+### Typischer Aufbau von Untersuchungen des Wiedererkennungsgedächtnisses
+
+Studien zu Ereigniskorellierten Potenzialen (EKPs), die sich mit dem Wiedererkennungsgedächtnis beschäftigen, haben alle einen ähnlichen Aufbau [@Luck.2012b]: Probanden werden im Laufe des Experiments zwei Listen präsentiert. Die in der ersten Phase präsentierte Lernliste enthält Stimuli, die sich der Proband einprägen soll. Die Form der Präsentation kann dabei je nach Studie variieren, wobei die sukzessive Einblendung von Wörtern auf einem Computer-Bildschirm die häufigste Form darstellt. In der zweiten Phase des Experiments folgt auf gleiche Art die Präsentation der Testliste, die sowohl Stimuli aus der Lernliste als auch neue, zuvor nicht präsentierte Stimuli enthält. Per Tastendruck sollen die Probanden dann entscheiden, ob der eingeblendete Teststimulus ein alter oder ein neuer ist.
+
+Die EKPs werden typischerweise in der zweiten Phase des Experiments aufgenommen, die über die Trials für verschiedene Bedingungen gemittelt werden. So könnte man beispielsweise EKPs für die Durchgänge mit alten Stimuli (*Targets*) mit den EKPs für die Durchgänge mit neuen Stimuli (*Fillers*) vergleichen. Oder man könnte noch etwas spezifischer die EKPs der *Targets* mit den EKPs der *Fillers* vergleichen, für die gilt, dass der Proband sie korrekterweise als alt (*hit*) bzw. neu beurteilt (*correct rejection*) hat [@Luck.2012b]. Der in diesem Zuge untersuchte Effekt wird auch *Old-New*-Effekt (ON-Effekt) genannt [@Sanquist.1980].
+
+### Der Old-New-Effekt
+
+Der ON-Effekt äußert sich – allgemein gesprochen – darin, dass sich die EKPs für *hits* in signifikanter Weise von den für *correct rejections* unterscheiden [@Rugg.2007]. Im Verlauf der Forschung seit @Sanquist.1980 kristallisierte sich allmählich heraus, dass zwischen zwei mutmaßlich distinkten ON-Effekten unterschieden werden kann [@Luck.2012b]. Zum einen fand man den sog. linksparietalen ON-Effekt (LP-ON-Effekt) [@Rugg.1995] und später den midfrontalen ON-Effekt (MF-ON-Effekt) [@Rugg.1998]. Die beiden Effekte unterscheiden sich hinsichtlich zeitlicher und räumlicher Eigenschaften neuronaler Aktivität [@Curran.2000; @Curran.2003; @Duarte.2004; @Duzel.1997; @Hintzman.1994; @Nessler.2001; @Rugg.1998]. Während der MF-ON-Effekt typischerweise 300–500 ms nach Stimulus-Darbietung an frontalen Elektroden zu finden ist, zeigt sich der LP-ON-Effekt typischerweise 500–800 ms nach Stimulus-Darbietung an parietalen Elektroden (Tabelle \@ref(tab:famrec)).
+
+\newpage
+```{r famrec, include=TRUE, results='asis'}
+
+# Tabelle mit Informationen verschiedener EEG-Studien über Zeitraum und Ort der familiarity- und recollection-Effekte 
+
+famrec <- fread('../Tables/famrec.csv', header = F)
+
+apa_table(famrec,
+         col.names = c('Autor', 'Zeitraum [ms]', 'Elektroden', 'Zeitraum [ms]', 'Elektroden'),
+         col_spanners = list('Familiarity' = c(2, 3), 'Recollection' = c(4, 5)),
+         caption = 'Familiarity und recollection in EEG-Studien',
+         font_size = 'footnotesize'
+         )
+```
+
+### Familiarity und Recollection
+
+Die Unterscheidung zwischen den beiden ON-Effekten lieferte den Anlass für die Annahme, dass sie zwei distinkte, neuropsychologische Prozesse repräsentieren könnten. Allgemein beinhaltet diese *Zwei-Prozess-Hypothese*, dass dabei der LP-ON-Effekt ein Marker für *recollection* und der MF-ON-Effekt ein Marker für *familiarity* ist [@Luck.2012b; @Rugg.2007; @Yonelinas.2002]. 
+
+Auch wenn *familiarity* von verschiedenen Forschern unterschiedlich konzeptualisiert wird, würden die meisten darin übereinstimmen, dass *familiarity*-basierte Wiedererkennung im Vergleich zu *recollection*-basierter Wiedererkennung schneller und automatischer abläuft und keine qualitativen Informationen zum wiedererinnerten Gedächtnisinhalt bereitstellt [@Rugg.2007]. *Recollection* dagegen kann als eher langsamerer, aufwändigerer Prozess angesehen werden, der in dem Bewusstsein zugänglichen Informationen resultiert - bspw. in der Wiedererinnerung der Konfrontation mit dem relevanten Stimulus selbst oder in der Wiedererinnerung kontextueller Zusatzinformationen im Zusammenhang mit der Konfrontation [@Rugg.2007].
+
+Vertreter der Zwei-Prozess-Hypothese haben verschiedene Paradigmen aufgestellt, mit denen sie die Unterscheidbarkeit von *familiarity*- und *recollection*-basierten Prozessen nachzuweisen versuchten. Im Folgenden sollen die populärsten Paradigmen vorgestellt und verglichen werden. Diese erfordern nicht immer auch neuronale Untersuchungen neben den behavioralen. Es soll veredeutlicht werden, warum diese Arbeit auf das RK-Paradigma zurückgriff.
+
+### Nachweis durch Manipulation auf Beobachter-Ebene
+
+Einen der ersten Hinweise, dass der MF-ON-Effekt als neuronaler Marker für *familiarity* gesehen werden kann, lieferte [@Duzel.1997], auch wenn die Autoren für das Phänomen noch den Term *noetic awareness* verwendet haben (und für *recollection* *autonoetic awareness*). Sie verwendeten das sog. *Remember-Know*-Paradigma (RK-Paradigma). Dem oben beschriebenen, typischen Aufbau eines Gedächtnisexperiments folgend wurden hier dem Probanden eine Lernliste und eine Testliste präsentiert. 
+
+Während der Testliste jedoch hatten die Probanden drei anstatt zwei Antwortmöglichkeiten: (a) Sie erinnern das konkrete Ereignis der Stimuluspräsentation in der Lernliste oder können passende Kontextinformationen abrufen (*remember*, R), (b) sie wissen, dass der Stimulus in der Lernliste vorkam, können aber nicht das konkrete Ereignis der Stimuluspräsentation erinnern oder Kontextinformationen abrufen (*know*, K), oder (c) sie können sich nicht erinnern, dass der Stimulus in der Lernliste präsentiert wurde (*new*, N). Das R-Urteil sollte dabei ein Index für *recollection* sein, während das K-Urteil ein Index für *familiarity* sein sollte. *Familiarity* und *recollection* wiederum würden durch räumlich und zeitlich distinkte EKP-Korrelate repräsentiert werden.
+
+@Duzel.1997 wiesen einen ON-Effekt für R-Urteile nach. Der Effekt zeigte sich im Zeitfenster zwischen 600 ms und 1000 ms durch einen positiven Ausschlag an linkslateralisierten, temporoparietalen Elektroden Auch konnte ein ON-Effekt für K-Urteile nachgewiesen werden. Der Effekt zeigte sich im selben Zeitfenster zwischen 300 ms und 600 ms durch einen positiven Ausschlag an posterioren Elektroden.
+
+Ähnliche Effekte konnte @Duarte.2004 unter Verwendung von Fotografien von Objekten nachweisen (Abbildung \@ref(fig:imgDuarte)).
+
+(ref:imgDuarte) @Duarte.2004. EKPs für Stimuli, bei denen das RK-Paradigma verwendet wurde, wobei *miss* den Fall darstellt, in dem ein *Target* mit *neu* beurteilt wurde. Die linke Spalte stellt links- und die rechte Spalte rechtslaterale Elektroden dar (FP: frontopolar, P: parietal). Die Befunde deckten sich mit der Annahme von existierenden frühen, frontalen *familiarity*- und späten, parietalen *recollection*-Effekten. Erstens: Im Intervall von 300-450 ms wurden Urteilseffekte an frontopolaren Elektroden gefunden. Und zwar in der Weise, dass *follow-up*-Kontraste sowohl R-*Miss*- ($t's$(10) > 2.41, $p's$ < .05) als auch K-*Miss*-Effekte ($t's$(10) > 2.15, $p's$ < .05), also *recollection*- und *familiarity*-Effekte, aufzeigten. Zweitens: Im Intervall von 450-600 ms wurden Urteilseffekte u.a. an parietalen Elektroden gefunden. Und zwar in der Weise, dass *follow-up*-Kontraste keine *familiarity*-Effekte ($t's$(10) < 1) aber *recollection*-Effekte ($t's$(10) > 2.64, $p's$ < .05) aufzeigten.
+
+\newpage
+```{r imgDuarte, include=T, fig.cap='(ref:imgDuarte)'} 
+include_graphics('../Images/duarteERP.pdf')
+```
+
+### Nachweis durch Manipulation auf Stimulus-Ebene
+
+Ein Beispiel, dass *familiarity* und *recollection* auch durch Manipulation auf Stimulus-Ebene nachgewiesen werden kann, liefert die Studie von [@Curran.2000], der das sogenannte *plurality recognition*-Paradigma verwendete. Im Vergleich zum RK-Paradigma haben die Probanden während der Präsentation der Testliste wieder nur zwei Antwortmöglichkeiten: *yes* für alte, *no* für neue Stimuli. Wieder gab es drei Typen von Teststimuli: (a) Wörter, die zuvor präsentiert wurden (*studied*), (b) neue, morphologisch ähnliche Wörter (*similiar*) und (c) neue Wörter, die in keinem morphologischen Zusammenhang mit den präsentierten Lernstimuli stehen (*new*). Die morphologische Ähnlichkeit wurde durch die Veränderung der Pluralität der Stimuli erzeugt. D.h. es wurden englische Nomen verwendet, die durch das Anhängen eines *s* in den Plural gesetzt werden konnten.
+
+Das Rational hinter dem Paradigma waren Currans (2000) Annahmen, dass die EKPs in der Bedingung *studied/yes* hohe *familiarity* und hohe *recollection* in Bezug auf die Pluralität, *similiar/yes* hohe *familiarity* und niedrige *recollection*, und *new/no* niedrige *familiarity* und niedrige *recollection* reflektierten. 
+
+Der Unterschied der EKPs in den Bedingungen *studied/yes* und *similiar/yes* sollte daher ein Marker für *recollection* sein. Denn es wurde angenommen, dass erstens die *familiarity* für diese beiden Bedingungen auf ähnlich hohem Niveau sein sollte und dass zweitens für die Bedingung *studied/yes* eine korrekte *recollection* der Pluralität nötig ist. Dieser Effekt sollte mit dem LP-ON-Effekt korrespondieren. Der Unterschied der EKPs in den Bedingungen *similar/yes* und *new/no* sollte ein Marker für *familiarity* sein. Denn es wurde angenommen, dass erstens die *recollection* für diese beiden Bedingungen auf ähnlich niedrigem Niveau sein sollte und dass zweitens *similar*-Stimuli höhere *familiarity* erzeugten als *new* Stimuli. Dieser Effekt wiederum sollte mit dem MF-ON-Effekt korrespondieren.
+
+Die beschriebene Logik untermauernd konnte @Curran.2000 den MF-ON-Effekt im Zeitfenster zwischen 300 ms und 500 ms sowie den LP-ON-Effekt im Zeitfenster zwischen 400 ms und 800 ms nachweisen (Abbildung \@ref(fig:imgCurran)).
+
+(ref:imgCurran) Daten von @Curran.2000, Abbildung aus @Curran.2006. EKPs für Stimuli, bei denen das *plurality recognition*-Paradigma verwendet wurde. Die Befunde deckten sich mit der Annahme von existierenden frühen, frontalen *familiarity*- und späten, parietalen *recollection*-Effekten. (a) EKPs eines linksfrontalen Elektrodenclusters (inkl. F3). Der Unterschied der EKPs in den Bedingungen *similar/yes* und *new/no*, als Marker für *familiarity* angenommen, konnte in einem Zeitraum von 300-500 ms nachgewiesen werden. (b) EKPs eines linksparietalen Elektrodenclusters (inkl. P3). Der Unterschied der EKPs in den Bedingungen *similar/yes* und *similiar/yes*, als Marker für *recollection* angenommen, konnte in einem Zeitraum von 400-800 ms nachgewiesen werden. Ähnlich wie in @Duarte.2004 gab es darüber hinaus (in (b)) keinen *familiarity*-Effekt.
+
+\newpage
+```{r imgCurran, include=T, fig.cap='(ref:imgCurran)'} 
+include_graphics('../Images/curranERP.pdf')
+```
+
+Kurz gesagt @Curran.2000 hatte die Idee, *familiarity* und *recollection* durch eine Manipulation der Ähnlichkeit der zu testenden Stimuli zu provozieren. Es existieren einige Experimente, die diese Logik verfolgten, aber nicht die Pluralität von Wörtern veränderten, sondern die semantische Ähnlichkeit [@Curran.2001], oder *blobs*, also zufällige, visuelle Formen [@Curran.2002] oder Links-Rechts-Spiegelungen [@Curran.2003] zur Manipulation von Ähnlichkeit verwendeten. Letztere beiden Studien konnten die Befunde auch in Bezug auf visuelle Stimuli replizieren.
+
+Es sollte festgehalten werden, dass die genannten Experimente mal konzeptuelle, mal perzeptuelle Veränderungen der Stimuli vorgenommen haben und dennoch konsistente Befunde herauskamen. Zudem waren diese Effekte auch robust gegenüber der Veränderung der Sinnesmodalität: Ob die Lernstimuli auditiv oder visuell präsentiert wurden, hatte in einem Experiment von [@Curran.2003b] keinen Einfluss auf die beiden ON-Effekte.
+
+### Nachweis durch Recollection-Cues
+
+Ein anderer populärer Versuch, *recollection* und *familiarity* zu operationalisieren, geschah durch den sog. *memory source task* [@Wais.2010]. In diesem Fall wurde den Probanden während der Enkodierungsphase zusätzlich zum Stimulus ein *kontextueller Cue* präsentiert, der einen von zwei Fragen beinhaltete (*common*: *does the word describe something you expect to encounter in a typical week?*; oder *discuss*: *does the word describe something you would discuss with a close friend?*). 
+
+In der Testphase sollte u.a. über die Neuheit des Stimulus entschieden werden und - im Falle eines alt-Urteils - angegeben werden, womit gecued wurde (*common* vs. *discuss*; *source memory task*). Das Rational dahinter war, dass ein korrektes alt-Urteil in Kombination mit der korrekten *source memory*, also der Fähigkeit, den korrekten Cue wiederzuerinnern, *recollection* präsentiert, da der Kontext der Erinnerung abgerufen werden konnte, während ein inkorrektes *source-memory*-Urteil *familiarity* repräsentiert. 
+
+Der Nachteil der *source memory task* ist der, dass berücksichtigt werden sollte, dass Probanden, die ein falsches *source memory*-Urteil abgegeben haben, möglicherweise trotzdem andere kontextuelle Cues erinnern, die im Speziellen nicht abgefragt wurden. Dennoch hätte in diesem Falle eine *stille recollection* stattgefunden, die durch das experimentelle Design unerkannt geblieben wäre und als *familiarity* interpretiert worden wäre [@Migo.2012].
+
+### Vor- und Nachteile des RK-Paradigmas
+
+Einige Forscher kritisieren am RK-Paradigma, dass es statt zweier distinkter Prozesse eher die Höhe der empfundenen Sicherheit des Urteils (*confidence*) messe [@Donaldson.1996; @Hirshman.1998; @Inoue.1998]. Nach deren Ansicht tendieren Personen dazu, *remember* zu antworten, wenn sie eine sehr hohe *confidence* in Verbindung mit ihrem Urteil haben. Dabei sei kaum relevant, ob eher *recollection* oder *familiarity* zugrunde liege. 
+
+An diesem Punkt wird die Wichtigkeit einer klaren Instruktion (RK-Urteil nicht von der *confidence* zu abhängig machen) und der Sicherstellung, dass Probanden diese Instruktionen befolgen, deutlich [@Migo.2012]. Nur so können mögliche Konfundierungen mit der *confidence* minimiert werden.
+
+Darüberhinaus impliziert das RK-Paradigma, dass die zugrunde liegenden Prozesse *recollection* und *familiarity* in bewusste Urteilsprozesse mündet. Anders gesagt: Das RK-Paradigma setzt voraus, dass Probanden zu trennscharfer Introspektion ihrer Gedächtnisprozesse in der Lage sind, was nicht unbeachtet bleiben sollte [@Voss.2008].
+
+Dennoch ist es gerade die Einfachheit des Paradigmas, die es so populär gemacht hat. Zudem führten viele Studien, die dieses Paradigma nutzten, zu konvergierenden Ergebnissen mit Studien, die andere Methoden verwendeten. [@Yonelinas.2002; @Yonelinas.2010]. Genaue Instruktionen und eine gut durchdachte Durchführung machen das RK-Paradigma zu einem starken Werkzeug zur Untersuchung von *familiarity* und *recollection*.
+
+### Signal-Detection-Theorie vs. Zwei-Prozess-Modell
+
+Das vorgestellte Zwei-Prozess-Modell basiert auf der Annahme der Existenz zweier, disktinkter neuronaler Prozesse. Eine andere große Theorie jedoch besagt, dass Wiedererkennung auf einem einzigen Prozess beruht: die *single-process-signal-detection*-Theorie [@Donaldson.1996; @Dougal.2007; @Dunn.2004; @Dunn.2008; @Hirshman.1998; @Slotnick.2005; @Wixted.2007]. Nach dieser Theorie besitzt jeder Stimulus eine sog. *memory-strength* [@Egan.1958]; *Targets* besäßen eine größere *memory-strength* als *Fillers*. Überschreite diese Metrik einen gewissen Wert, würde dies zu einem alt-Urteil führen. Die Idee ist dabei, dass *Targets* und *Fillers* hinsichtlich der *memory-strength* normalverteilt sind, *Targets* aber einen höheren Mittelwert und eine höhere Varianz besitzen [@Wixted.2010]. 
+
+Wixted und Mickes (2010) fassten zusammen, dass die meisten Vertreter dieser Theorie davon ausgehen, dass *memory strength* mit Eigenschaften wie *confidence*, Urteilsgenauigkeit und RT kovariiert: Höhere *memory strength* gehe mit mehr *confidence*, höherer Genauigkeit und kürzeren RTs einher (Abbildung \@ref(fig:memstrength)).
+
+(ref:memstrength) Eine häufige Visualisierung der *single-process*-Hypothese, angelehnt an Wixted und Mickes (2010). Nach dieser Theorie besitzen *Filler* (linke Verteilung) einen niedrigeren Mittelwert und eine niedrigere Varianz als *Targets*. Höhere *confidence*-Urteile (vertikale Linien) gingen mit höherer *memory strength* einher. Vertreter dieser Hypothese gehen darüber hinaus davon aus, dass RK-Urteile nichts anderes als *confidence* widerspiegeln, in der Weise, dass R-Urteile hohe *confidence* reflektieren und K-Urteile niedrige [@Donaldson.1996].
+
+\newpage
+```{r memstrength, include=T, fig.cap='(ref:memstrength)'}
+ggplot(data = data.frame(x = c(-3, 6)), aes(x)) +
+  geom_vline(xintercept = c(-.5, 0, .5, 1, 1.5, 2), color ='grey') +
+  stat_function(fun = dnorm, n = 100, args = list(mean = 0, sd = 1)) + 
+  stat_function(fun = dnorm, n = 100, args = list(mean = 1.5, sd = 1.4)) + 
+  xlab('memory strength') +
+  ylab('Dichte') +
+  scale_x_continuous(breaks = NULL) +
+  apastyle 
+```
+
+# Überblick über die Studie
+
+Nicht zuletzt durch das RK-Paradigma und durch aktuelle EEG-Studien zum ON-Effekt [@Curran.2000; @Curran.2003; @Duarte.2004; @Duzel.1997; @Nessler.2001; @Rugg.1995; @Rugg.1998; @Rugg.2007] wurde die *single-process*-Hypothese als nicht ausreichend für die Erklärung verschiedener Befunde gesehen. 
+
+Viele heutige Forscher halten eine Kombination beider Modelle für am wahrscheinlichsten, wonach man grundsätzlich vom Zwei-Prozess-Modell ausgeht, innerhalb dieses Modells - konform mit der Idee der *memory strength* - *familiarity*-Prozesse als Kontinuum beschrieben werden, während *recollection* eher als dichotomer Prozess angesehen wird [@Jacoby.1991; @Mandler.1980; @Yonelinas.1994]. So kann *familiarity* in unterschiedlich hoher Ausprägung vorhanden sein, während *recollection* entweder auftritt oder nicht.
+
+Aus diesem Grund und weil über sehr unterschiedliche Paradigmen hinweg *familiarity* und *recollection* als distinkte Prozesse nachgewiesen werden konnten, schließt sich diese Arbeit dem Zwei-Prozess-Modell an. Auch das RK-Paradigma erschien als passend für Untersuchung von *familiarity* und *recollection*, da viele Kritikpunkte auf methodische Schwächen und weniger auf Schwächen des Rationals selbst zurückzuführen sind. So sollte vor allem die Unterscheidung von R- und K-Urteile klar instruiert werden und sichergestellt werden, dass diese befolgt würden, um eine Konfundierung mit *confidence* minimal zu halten.
+
+Dem RK-Paradigma folgend sollten R-Urteile *recollection*-basierte Prozesse und K-Urteile *familiarity*-basierte Prozesse widerspiegeln. Durch die vorliegende Arbeit soll untersucht werden, inwiefern der stimulusinterne Faktor *Memorabilität* mit diesen Prozessen interagiert, auf behavioraler (a) und neuronaler Ebene (b).
+
+
+## Hypothesen
+
+Hypothese 1a: *familiarity*- und *recollection*-basierte Wiedererkennung spiegelt sich in unterschiedlicher WL auf der Verhaltensebene wider.
+  
+Denn wenn man von zwei disktinkten Prozessen ausgeht, liegt die Vermutung nahe, dass diese Prozesse sich auch auf andere Verhaltensmaße, wie auf die WL, unterschiedlich auswirken.
+
+Hypothese 2a: Höhere Memorabilität hat einen positiven Einfluss auf die WL auf der Verhaltensebene.
+
+Diese Hypothese soll die Beobachtungen replizieren, dass Memorabilität über Beobachter hinweg konsistent ist.
+
+Hypothese 3a: Höhere Memorabilität führt zu einer Verschiebung des *Urteilsverhältnisses*, in der Weise, dass mehr *recollection*-basierte als *familiarity*-basierte Wiedererkennung auftritt.
+  
+Diese Hypothese wurde aufgestellt, da in einer früheren Studien [@Bainbridge.2017a] vermutet wurde, dass Memorabilität mit eher komplexeren, semantischen Bildeigenschaften verknüpft sein könnte. Da *recollection* den konkreten Abruf von Gedächtnisinhalten erfordert, könnte es sein, dass Memorabilität mehr diesem Prozess assoziiiert ist. 
+
+Daüber hinaus würde eine wie auch immer geartete Verschiebung darauf hinweisen, dass zwei distinkte Prozesse in der Wiedererkennung von Stimuli involviert sind und diese sich durch experimentelle Manipulation gezielt antriggern lassen. Dies würde die Zwei-Prozess-Hypothese untermauern.
+
+Hypothese 1b: *Familiarity*- und *recollection*-basierte Wiedererkennung sind mit qualitativ distinkten (d.h. topographischen und zeitlichen) EKP-Old-New-Effekten assoziiert.
+
+Diese Hypothese soll bisherige Befunde zum Zwei-Prozess-Modell replizieren.
+
+Hypothese 2b: Memorabilität beeinflusst die Größe eines allgemeinen EKP-Old-New-Effekts.
+
+Diese Hypothese stellt eine explorative Fragestellung dar. Da Memorabilität in vergangenen Studien als sehr robust, unabhängig und konsistent nachgewiesen wurde, sollte ein Einfluss auf den ON-Effekt sehr wahrscheinlich sein.
+
+# Methoden
+
+## Probanden
+
+```{r demographics}
+
+# Demographische Daten
+demogr <- read.csv('../Tables/demographics.csv', header = T, sep = ';') %>% 
+  as.data.table()
+str(demogr)
+
+NFem <- demogr[sex=='f', .N]
+
+MAge <- demogr[, mean(age, na.rm=T)]
+
+SDAge <- demogr[, sd(age, na.rm=T)]              
+
+range <- demogr[, range(age, na.rm=T)]
+
+NHandR <- demogr[hand=='r', .N] 
+```
+
+`r demogr[, .N]` Probanden (`r NFem` Frauen, *M* = `r MAge %>% printnum()` Jahre (*SD* = `r SDAge %>% printnum()`), *range* = `r range[1]` - `r range[2]` Jahre), hauptsächlich Studierende des Fachbereichs Psychologie und Sportwissenschaft, nahmen an dem Experiment teil. Die Rekrutierung erfolgte über Aushänge und über das Internet. Die Probanden wurden für ihre Teilnahme mit sog. Versuchspersonenstunden entlohnt, einer für das Curriculum notwendigen Studienleistung. Später wurde eine Teilnahme mit acht Euro pro Stunde entlohnt. Vor der Studie wurde sichergestellt, dass die Probanden noch an keiner der vergangenen oder parallel laufenden, fachbereichsinternen Studien teilgenommen haben, die teilweise dasselbe Stimulusmaterial wie in dieser Studie verwendeten. 
+Alle Probanden unterschrieben eine Einverständniserklärung bezüglich der Studienbedingungen. `r NHandR` Probanden waren rechtshändig und alle waren entweder normalsichtig oder trugen Korrekturen zur Normalsichtigkeit. Keiner der Probanden berichtete von neurologischen Vorerkrankungen, litt zur Zeit des Experiments an einer diagnostizierten psychologischen oder psychiatrischen Störung oder nahm zur Zeit des Experiments psychisch oder neurologisch wirksame Medikamente ein.
+
+## Stimulusmaterial und Studiendesign
+
+Insgesamt wurden 600 Fotografien (700x700 Pixel, Augenwinkel ca. 12.5 Grad) aus der SUN-Datenbank [@Xiao.2010] entnommen, welche zum Zeitpunkt der Arbeit 131 067 Fotografien umfasste. Aus diesen 600 wurden drei nicht überlappende Memorabilitätsstufen gebildet, die erstens Bilder mit den niedrigsten (< .5), zweitens Bilder mit mittleren ($\geq\ $.5 & < .74) und drittens Bilder mit den höchsten Memorabilitätsscores ($\geq\ $.74) enthielten. 
+
+Das Experiment hatte ein 3x4x2-*within-subjects*-Design, bestehend aus den Faktoren Memorabilität (*niedrig*, *mittel*, *hoch*), Urteil (*remember*, *know*, *detailliert-neu*, *bekannt-neu*) und Stimulusart (*Target*, *Filler*). *Targets* und *Fillers* wurden in zufälliger Reihenfolge präsentiert, jedoch in der Weise, dass jeder Block die gleiche Anzahl an *Targets* und *Fillers* (jeweils 25) beinhaltete.
+
+## Durchführung
+
+```{r single-subject descriptives}
+
+# Angaben über Trialzahlen in Abhängigkeit von diversen Bedingungen
+singleSubA <- fread('../Daten/Logfiles/CSV_Files/MF_01A_Logfile.csv')
+singleSubB <- fread('../Daten/Logfiles/CSV_Files/MF_01B_Logfile.csv')
+
+APassive <- singleSubA[ConditionW == 'passive']
+APassive_Ntests <- ifelse(APassive[, sum(complete.cases(RemKnow))] == 4, 'vier', '*hier stimmt was nicht*')
+
+BOld <- singleSubB[trialType == 'Target']
+BNew <- singleSubB[trialType == 'Filler']
+
+BOldPassive <- BOld[ConditionW == 'passive']
+BNewPassive <- BNew[ConditionW == 'passive']
+```
+
+Alle Probanden führten das Experiment in einer lichtgedimmten und geräuschgedämpften Kabine durch.  Die Probanden wurden instruiert, während der Stimuluspräsentation in die Mitte des Fotos auf ein dort erscheinendes Fixationskreuz zu fixieren, um eine möglichst hohe Datenqualität gewährleisten zu können. Urteile wurden per Tastendruck auf eine Tastatur gefällt. Je nach Urteil musste der Proband die linke oder die rechte Hand verwenden. Die Probanden wurden sowohl schriftlich als auch mündlich durch den Versuchsleiter instruiert. Es gab keine Instruktion dahingehend, Urteile möglichst rasch zu fällen. 
+
+Die Studie bestand aus zwei aufeinanderfolgenden Terminen (Abbildung \@ref(fig:imgMethod)), die exakt 24 Stunden auseinander lagen. Am ersten Tag sollten die Probanden `r nrow(singleSubA)` Fotografien enkodieren, von denen `r nrow(APassive)` (inkl. `r APassive_Ntests` Testitems) für diese Studie relevant waren. In dieser Bedingung wurden die Probanden instruiert, die Bildmitte zu fixieren, um die EEG-Daten möglichst artefaktfrei zu halten. Der andere Teil der Fotografien wurde für ein weiterführendes Experiment verwendet, welches nicht Gegenstand dieser Arbeit ist. 
+
+Die Stimuli wurden in sechs Blöcken gleichen Umfangs präsentiert. Nach jedem Block wurden zwei Übungstrials durchgeführt. Die Probanden sollten per Tastendruck für den zu testenden Stimulus berichten, ob sie ihn für alt oder neu hielten. Für beide Fälle sollte im nächsten Schritt berichtet werden, ob das Urteil auf *recollection* oder *familiarity* basiert, indem sie RK-Urteile fällen mussten, wobei *remember* im Experiment mit *detailliert, lebhaft* (R-Urteil) und *know* mit *bekannt* (K-Urteil) übersetzt wurde, da es sich um ausschließlich deutschsprachige Probanden handelte. 
+
+\newpage
+```{r imgMethod, include=T, fig.cap='Ablaufskizze des Experiments. Beim ersten Termin (*Encoding Block*) mussten die Probanden die präsentierten Stimuli enkodieren. Beim zweiten Termin (*Test Block*) mussten sich die Probanden nach jedem einzelnen Stimulus zwischen *alt* und *neu* und zusätzlich zwischen *remember* und *know* entscheiden. HMT: *High Memorable Target*, LMT: *Low Memorable Target*, MMT: *Medium Memorable Target*, HMD: *High Memorable Distractor*.'} 
+
+# Schema Versuchsablauf
+include_graphics('../Images/MemoEEGMethod.png')
+```
+
+Probanden sollten ein R-Urteil abgeben, wenn sie a) bei einem vorangegangenen alt-Urteil Bilddetails wiedererkennen (*remember*), bzw. wenn sie b) bei einem vorangegangen neu-Urteil, von Bilddetails erwarten würden, dass sie diese wiedererkannt hätten, wären diese denn am ersten Tag präsentiert worden (*detailliert-neu*).
+
+Probanden sollten ein K-Urteil abgeben, wenn c) bei einem vorangegangenen alt-Urteil der Stimulus ihnen vertraut vorkommt, jedoch ohne spezifische Assoziationen zu Bilddetails (*know*), bzw. wenn ihnen d) bei einem vorangeganenen neu-Urteil der Stimulus nicht vertraut vorkam (*bekannt-neu*).
+
+Darüber hinaus wurde schriftlich wie auch mündlich instruiert, dass R- und K-Urteile, nicht von der Sicherheit, *confidence*, mit der ein Urteil gefällt wurde, abhängig gemacht werden sollte. Dies wurde durch ähnliche Beispielsituationen wie die im *butcher-on-the-bus*-Phänomen [@Mandler.1980] verdeutlicht: Auch K-Urteile (also *familiarity*-Prozesse) konnten demnach mit starker *confidence* einhergehen.
+
+Nach jedem Block hatten die Probanden die Möglichkeit einer kurzen Pause. Vor dem Start jedes Blocks wurde der Eyetracker neu kalibriert.
+
+Am zweiten Tag wurden `r nrow(BOld)` alte und `r nrow(BNew)` neue Szenen randomisiert präsentiert, von denen insgesamt `r nrow(BOldPassive)` alte und `r nrow(BNewPassive)` neue Szenen für diese Studie relevant sind. Aufgrund der höheren Stimulusanzahl wurden die Trials in 12 Blöcke gleichen Umfangs unterteilt. Nach jedem einzelnen Stimulus fand die oben beschriebene alt/neu- und RK-Abfrage statt. Alle Probanden mussten nach dem ersten Block mündlich Beispiele für tatsächlich gefällte RK-Urteile nennen und erklären. So sollte sichergestellt werden, dass das RK-Paradigma korrekt verstanden wurde. 
+
+Nach jedem Block hatten die Probanden die Möglichkeit einer kurzen Pause. Vor dem Start jedes Blocks wurde der Eyetracker neu kalibriert. 
+
+Inklusive Vorbereitungszeit dauerte der erste Tag etwa 90 Minuten, während der zweite Tag etwa 150 Minuten beanspruchte. 
+
+## Messinstrumente
+
+An beiden Versuchstagen wurden EEG-Daten mithilfe des *ActiveTwo*-Systems von *BioSemi* bei einer Sampling Rate von 1024 Hz gesammelt. Es wurden Kappen von *easycap* verwendet (64 abstandsgleiche Kanäle, M34 Layout). Die Elektroden wurden solange justiert, bis sich Impedanzen von weniger als 50 k$\Omega$ ergaben. Um die EEG-Daten möglichst artefaktfrei zu halten, wurden Augenbewegungen und Pupillendilatation durch das vertikale EOG kontrolliert, dessen Elektrode unter dem linken Auge des Probanden angebracht wurde. 
+
+Desweiteren wurden an beiden Versuchstagen Eyetracking-Daten durch den *SR Research EyeLink 1000 Plus*-Eyetracker aufgenommen. Es handelte sich um einen am Tisch befestigten Infrarot-Eytracker mit einer Sampling-Rate von 1000 Hz, der frontal 56 cm entfernt vom Kinn des Probanden aufgebaut wurde.
+
+Für die Stimuluspräsentation wurde ein *VIEWPixx Technologies CRT*-Monitor verwendet (1920x1080 Pixel, 120 Hz). Der Bildschirm war 86 cm von der Kinnstütze entfernt. Als Software für das Experiment und für die Speicherung der Rohdaten wurden Matlab [@MATLAB.2018] und die *Psychophysics Toolbox* [@Brainard.1997] genutzt. 
+
+## Vorverarbeitung
+
+### Software
+
+Für die Datenbereinigung und für die Analysen wurden Matlab [@MATLAB.2018], R [@R-base] und die R-Pakete *afex* [@R-afex], *citr* [@R-citr], *data.table* [@R-data.table], *devtools* [@R-devtools], *ggplot2* [@R-ggplot2], *knitr* [@R-knitr] und *pacman* [@R-pacman] verwendet. Darüberhinaus wurde das vorliegende Manuskript durch das R-Paket *papaja* [@R-papaja] erstellt, sodass dieses Paper inkl. aller berichteten Statistiken voll reproduzierbar ist.
+
+### Vorverarbeitung der behavioralen Daten
+
+Für die Analysen wurden nur solche Trials behalten, deren Reaktionszeiten zwischen 100 ms und einschließlich 30 Sekunden lagen. Die untere Grenze orientierte sich dabei am Paper von @Luce.1986, welche zeigte, dass man für die Gesamtzeit von physiologischen Prozessen und motorischer Antwort mindestens 100 ms annehmen sollte. Die obere Grenze auf der anderen Seite wurde sehr liberal angesetzt, da es sich bei diesem Experiment nicht um ein klassisches Reaktionszeitexperiment handelte, in dem die Probanden bspw. instruiert wurden, möglichst schnell zu antworten. Außerdem wurden Durchgänge nicht berücksichtigt, bei denen die Pupillenbewegungen um mehr als 3 Winkelgrad vom Fixationskreuz abwichen, was in diesem Experiment einem Radius von etwa 4,5 cm auf der Monitoroberfläche entsprach. In diesem Fall musste angenommen werden, dass die Probanden sich nicht an die Instruktion hielten, auf die Bildmitte zu fixieren.
+
+Aufgrund von technischen Problemen gingen von den anfänglichen `r demogr[, .N]` `r demogr[include==1, .N]` Probanden in die Vorverarbeitung ein. Darüber hinaus führte die Datenbereinigung zu einem Datenverlust von `r dirty` %, was vor allem dem Fixationskriterium geschuldet war. Abbildung  \@ref(fig:respdata) verdeutlicht die relative Häufigkeit der gegebenen Urteile (*remember*, *know*, *neu*) in Abhängigkeit von der Stimulusart (*Filler* vs. *Target*).
+
+\newpage
+```{r respdata, include=T, fig.cap="Mittlere, relative Häufigkeit von R-, K- und N-Urteilen in Abhängigkeit von der Stimulusart (*Filler* vs. *Target*). Die Fehlerbalken symbolisieren +/- eine Standardabweichung."}
+
+plot_resp
+```
+
+### Vorverarbeitung der EEG-Daten
+
+Die Sampling Rate der EEG-Daten wurde auf 512 Hz heruntergesetzt. Als Referenz diente die *average reference* über alle Elektroden. Es wurde ein Bandpass-Filter zwischen 0.1 und 100 Hz eingesetzt. Nicht korrigierbare Elektroden während des Testtages wurden interpoliert. Es wurde eine Kombination aus Artefaktzurückweisung und -korrektur angewandt: Ein konservatives Threshold von 650 $\mu$V wurde angewandt, ab welchem entsprechende Epochen zurückgewiesen wurden. Mithilfe eines Matlab-Plugins wurden mögliche, typische Artefakte um 50 Hz detektiert und korrigiert. Die übrigen Artefakte wurden per Unabhängiger Komponentenanalyse (ICA) und darauffolgender visueller Inspektion korrigiert. Bevor die Daten statistisch analysiert wurden, wurde pro Versuchsbedingung eine Baseline-Korrektur der EKPs auf den Zeitraum von -200 bis 0 ms (Stimulus-Darbietung) angewandt.
+
+## Analysen
+### Behaviorale Analysen
+
+Für die Hypothesen 1a und 2a wurde das Sensitivitätsmaß *d'* als abhängige Variable gewählt [@Stanislaw.1999]. Es sollte betont werden, dass in dieser Studie *Sensitivität* nicht synonym zur Hit-Rate verwendet wird, wie es bspw. in medizinischer Literatur der Fall. Sensitivität und Hit-Rate werden hier als unterschiedliche Maße verstanden. In Hypothese 1a war die unabhängige Variable das Urteil (*remember* vs. *know*); in 2a war die unabhängige Variable die Memorabilität (*niedrig*, *mittel*, *hoch*).  
+
+Im ersten Fall wurde ein t-Test mit abhängigen Stichproben gerechnet, um den Effekt des Urteil auf die WL zu überprüfen. Ein signifikantes Ergebnis sollte die Hypothese bestätigen, dass sich die WLs in Abhängigkeit des Urteils unterschieden, wobei R-Urteile als Indikator für *recollection*-basierte und K-Urteile als Indikator für *familiarity*-basierte Wiedererkennung angesehen wurden.
+
+Zur Überprüfung des Effekts der Memorabilität auf das die WL wurde eine einfaktorielle ANOVA mit Messwiederholungen gerechnet. Als Maß für die Effektstärke wurde Eta-Quadrat ($\hat{\eta}^2_G$) gewählt. Im Falle einer signifikanten Teststatistik sollten durch paarweise Mittelwertvergleiche Unterschiede zwischen den Faktorstufen von Memorabilität auf Signifikanz getestet werden. Würde sich hier zeigen, dass mit höherer Memorabilitätsstufe das *d'* steigt, würde dies als Bestätigung für die Hypothese angesehen werden, dass höhere Memorabilität zu einer besseren WL führte.
+
+Für Hypothese 3a wurde die sog. *Scaled Difference* [@Haaf.2018] (*SCD*) als abhängige Variable und *Memorabilität* als unabhängige Variable gewählt. Zur Überprüfung des Effekts der Memorabilität auf das Urteilsverhältnis (gemessen durch die *SCD*) wurde eine einfaktorielle ANOVA mit Messwiederholungen gerechnet werden. Als Maß für die Effektstärke wurde Eta-Quadrat ($\hat{\eta}^2_G$) gewählt. Im Falle einer signifikanten Teststatistik sollten durch paarweise Mittelwertvergleiche Unterschiede zwischen den Faktorstufen von Memorabilität auf Signifikanz getestet werden. Würde sich hier zeigen, dass mit höherer Memorabilitätsstufe das *SCD* steigt, würde dies als Bestätigung für die Hypothese angesehen werden, dass höhere Memorabilität mehr *recollection*-basierte Wiedererkennung antriggert.
+
+Die Formeln zur Berechnung der verwendeten, abhängigen Variablen befinden sich im Anhang.
+
+### EEG-Analysen
+
+Die EEG-Analysen sollten sich zum einen an den Methoden ähnlicher Studien orientieren [@Curran.2000; @Curran.2003; @Duarte.2004; @Duzel.1997; @Hintzman.1994; @Nessler.2001; @Rugg.1998; @Rugg.2007] und sich zum anderen ausschließlich auf die Hypothesentestung konzentrieren, um die Ergebnisse auf ein notwendiges Minimum zu beschränken. 
+
+Für reliable Analysen wurde, wie in @Duarte.2004, festgelegt, dass jede Bedingung auf mindestens zehn Probanden mit mindestens 15 artefaktfreien Trials basierte. Darüber hinaus wurde nur an solchen Elektroden getestet, in denen in der Vergangenheit die größten ON-Effekte gefunden wurden (Tabelle \@ref(tab:famrec)). Das midfrontale Cluster bestand aus Elektroden um *F3* und *F4* herum (*A6* (*F4*-äquvalent), *B2*, *B3*, *B8*, *B9*, *B11* (*F3*-äquvalent)), während das linksparietale Cluster um *P3* herum gebildet wurde (*A28* (*P3*-äquvalent), *A29*, *B14*, *B15*, *B24*, *B25*). Aus genannten Gründen beschränkten sich die Analysen auf die Zeitfenster zwischen 300 und 500 ms bzw. zwischen 500 und 800 ms. 
+
+### Hypothese 1b
+
+Als abhängige Variable wurden die über das relevante Elektrodencluster gemittelten Amplituden zu den relevanten Zeiträumen (midfrontales Cluster über 300-500 ms und linksparietales Cluster über 500-800 ms) berechnet. Um den Einfluss des Urteils auf die Amplituden zu testen, wurden drei Faktorstufen für *Urteil* gebildet: *remember/Target*, *know/Target* und das Aggregat aus den Bedingungen *detailliert-neu/Filler* und  *bekannt-neu/Filler*. So ergab sich ein einfaktorielles und dreistufiges (nachfolgend: *remember*, *know*, *neu*) Analyse-Design, für das separat eine *omnibus* ANOVA mit Messwiederholung für das midfrontale bzw. linksparietale Cluster berechnet werden sollte. Als Maß für die Effektstärke wurde Eta-Quadrat ($\hat{\eta}^2_G$) gewählt. 
+
+So konnte überprüft werden, ob der Faktor *Urteil* überhaupt einen signifikanten Einfluss auf die mittleren Amplituden hatte. Im Falle von signifikanten Ergebnissen sollten *follow-ups* innerhalb des betreffenden Elektrodenclusters und definierten Zeitfensters in Form von paarweisen Vergleichen durchgeführt werden. Unterschiede der Amplituden, die durch K- vs. N-Urteile provoziert wurden, sollten ein Indikator für *familiarity* sein, während Unterschiede der Potenziale zwischen R- und K-Urteilen ein Indikator für *recollection* sein sollten [@Duarte.2004]. Topografische Maps sollten darüber hinaus die Verteilung der Potenziale über die Schädeloberfläche veranschaulichen.
+
+In Bezug auf Hypothese 1b führten die beschriebenen Kriterien dazu, dass `r keepIDs %>% length()` Probanden in die Analysen aufgenommen wurden. 
+
+### Hypothese 2b
+
+Als abhängige Variable wurden die über das relevante Elektrodencluster gemittelten Amplituden zu den relevanten Zeiträumen (midfrontales Cluster über 300-500 ms und linksparietales Cluster über 500-800 ms) berechnet. Um den Einfluss von Memorabilität auf den ON-Effekt zu testen, wurden pro Faktorstufe von Memorabilität (*niedrig*, *mittel*, *hoch*) die Differenzen der EKPs gebildet die durch korrekte alt-Urteile (also R- und K-Urteile zusammengefasst) bzw. durch korrekte neu-Urteile (also *detailliert-neu* und *bekannt-neu* zusammengefasst) evoziert wurden. So ergab sich ein einfaktorielles und dreistufiges (nachfolgend: *niedrig*, *mittel*, *hoch*) Analyse-Design, für das separat eine *omnibus* ANOVA mit Messwiederholung für das midfrontale bzw. linksparietale Cluster berechnet werden sollte. Als Maß für die Effektstärke wurde Eta-Quadrat ($\hat{\eta}^2_G$) gewählt.
+
+So konnte überprüft werden, ob der Faktor *Memorabilität* überhaupt einen signifikanten Einfluss auf die mittleren Amplituden des ON-Effekts hatte. Im Falle von signifikanten Ergebnissen sollten *follow-ups* innerhalb des betreffenden Elektrodenclusters und definierten Zeitfensters in Form von paarweisen Vergleichen durchgeführt werden. Sollten mit höherer Memorabilität die mittleren Amplituden im Betrag steigen, würde dies für einen Nachweis angesehen werden, dass die Höhe der Memorabilität einen positiven Einfluss auf den ON-Effekt hätte.
+
+Jedoch konnte Hypothese 2b nicht untersucht werden, da eine zu geringe Anzahl an Trials vorlag. Dies war vor allem der Tatsache geschuldet, dass für die Bedingung *niedrige Memorabilität* zu wenig alt-Urteile getroffen wurden, sodass die Basis für das Grand Averaging als nicht reliabel angesehen werden sollte.
+
+Für jegliche, signifikante Effekte wurde ein $\alpha$-Niveau von .05 festgelegt. Die in den ANOVAs berichteten $p$-Werte wurden Greenhouse-Geisser-korrigiert. Die Grenzen für die Größe der Effektstärke $\hat{\eta}^2_G$ wurden nach @Cohen.1988 interpretiert. Sie lagen bei .01 (kleiner Effekt), .06 (mittlerer Effekt) und .14 (großer Effekt). Die berichteteten $p$-Werte der Mittelwertvergleiche wurden Bonferroni-korrigert.
+
+# Ergebnisse
+## Behaviorale Ergebnisse
+### Hypothesen 1a und 2a
+
+```{r statistics hyp1_2}
+MRem  <- dPrimePretty[Urteil=='remember', mean(dprime)] %>% printnum()
+SDRem <- dPrimePretty[Urteil=='remember', sd(dprime)] %>% printnum()
+
+MKnow <- dPrimePretty[Urteil=='know', mean(dprime)] %>% printnum()
+SDKnow<- dPrimePretty[Urteil=='know', sd(dprime)] %>% printnum()
+
+MLo   <- dPrimePretty[Memorabilität=='niedrig', mean(dprime)] %>% printnum()
+SDLo  <- dPrimePretty[Memorabilität=='niedrig', sd(dprime)] %>% printnum()
+MMid  <- dPrimePretty[Memorabilität=='mittel', mean(dprime)] %>% printnum()
+SDMid <- dPrimePretty[Memorabilität=='mittel', sd(dprime)] %>% printnum()
+MHi   <- dPrimePretty[Memorabilität=='hoch', mean(dprime)] %>% printnum()
+SDHi  <- dPrimePretty[Memorabilität=='hoch', sd(dprime)] %>% printnum()
+```
+
+Abbildung \@ref(fig:plotDPrime) verdeutlicht den Einfluss von *Urteil* (Hypothese 1a) und *Memorabilität* (Hypothese 2a) auf die WL. Die deskriptiven Statistiken wiesen darauf hin, dass R- ($M$ = `r MRem` ($SD$ = `r SDRem`)) und K-Urteile ($M$ = `r MKnow` ($SD$ = `r SDKnow`)) sich hinsichtlich der WL unterscheiden und dass mit höherer Memorabilität eine höhere WL einherging (*niedrig*: $M$ = `r MLo` ($SD$ = `r SDLo`), *mittel*: $M$ = `r MMid` ($SD$ = `r SDMid`), *hoch*: $M$ = `r MHi` ($SD$ = `r SDHi`)).
+
+Gemäß Hypothese 1a unterscheidet sich die WL je nach Urteil signifikant (`r ttest_dprimeUrteil$full_result`).
+
+Eine einfaktorielle ANOVA mit Messwiederholungen ergab, dass Memorabilität einen signifikanten Einfluss auf die WL hat (`r anova_dprimeMemo$full_result$Memorabilität`). Paarweise Vergleiche zeigten, dass mit höherer Memorabilität ein höheres *d'* einherging (*niedrig* vs. *mittel*: `r follow_dPrimeMemo$full_result$niedrig_mittel`, *niedrig* vs. *hoch*: `r follow_dPrimeMemo$full_result$niedrig_hoch`, *mittel* vs. *hoch*: `r follow_dPrimeMemo$full_result$mittel_hoch`).
+
+(ref:plotDPrime) Ergebnisse der Hypothesen 1a und 2a. (A) Schwarzer Line Plot zeigt die über alle Probanden gemittelte und normalisierte Sensitivität *d'* in Abhängigkeit vom Urteil und von der Memorabilität. Die hellen Line Plots gruppieren die normalisierten Daten nach Proband. Die Fehlerbalken repräsentieren 95%-Konfidenzintervalle um die Mittelwerte [@Morey.2008]. Werte größer 0 (gepunktete Linie) spiegeln eine tendenziell positive Wiedererkennungsleistung wider. (B) Boxplots der Sensitivität *d'* in Abhängigkeit vom Urteil. (C) Boxplots der Sensitivität *d'* in Abhängigkeit von der Memorabilität.
+
+\newpage
+```{r plotDPrime, include=T, fig.cap='(ref:plotDPrime)'}
+plot_hyp12
+```
+
+### Hypothese 3a
+
+Abbildung \@ref(fig:plotSCD) verdeutlicht, dass Memorabilität das Urteilsverhältnis (gemessen durch das *SCD*) beeinflusste. Mit höherer Memorabilität stieg das *SCD* (niedrig: $M$ = `r descr_scd$M[1]` ($SD$ = `r descr_scd$SD[1]`), mittel: $M$ = `r descr_scd$M[2]`($SD$ = `r descr_scd$SD[2]`), hoch: $M$ = `r descr_scd$M[3]` ($SD$ = `r descr_scd$SD[3]`)).
+
+Dieser Einfluss war zudem statistisch signifikant (`r anova_scd$full_result$Memorabilität`). Paarweise Vergleiche ergaben, dass mit höherer Memorabilität die *SCD* stieg (*niedrig* vs. *mittel*: `r follow_scd$full_result$niedrig_mittel`, *niedrig* vs. *hoch*: `r follow_scd$full_result$niedrig_hoch`, *mittel* vs. *hoch*: `r follow_scd$full_result$mittel_hoch`).
+
+(ref:plotSCD) Ergebnisse der Hypothese 3a. (A) Schwarzer Line Plot zeigt die über alle Probanden gemittelte und normalisierte *SCD* in Abhängigkeit von Memorabilität. Die hellen Line Plots gruppieren die normalisierten Daten nach Proband. Die Fehlerbalken repräsentieren 95%-Konfidenzintervalle um die Mittelwerte [@Morey.2008]. Werte größer 0 (gepunktete Linie) spiegeln mehr R- als K-Urteile wider. (B) Boxplots der Scaled Difference *SCD* in Abhängigkeit von der Memorabilität. 
+
+\newpage
+```{r plotSCD, include=T, fig.cap="(ref:plotSCD) "}
+plot_hypSCD
+```
+
+## Neuronale Ergebnisse
+### Hypothese 1b
+
+Das Urteil (*remember*, *know* vs. *neu*) hatte in Bezug auf beide getesteten Cluster (*midfrontal*, *linksparietal*) kaum unterscheidbare Einflüsse auf die mittleren Amplituden (Tabelle \@ref(tab:descriptivesEEG)).
+
+\newpage
+```{r descriptivesEEG, include=TRUE, results='asis'}
+apa_table(descr_EEG,
+         col.names = c('Cluster', '$M$', '$SD$', '$M$', '$SD$', '$M$', '$SD$'),
+         col_spanners = list('neu' = c(2, 3), 'know' = c(4, 5), 'remember' = c(6, 7)),
+         added_stub_head = 'Memorabilität',
+         caption = 'Deskriptive Statistiken für die mittleren Amplituden [Mikrovolt] in Abhängigkeit vom Cluster und vom Urteil',
+         font_size = 'footnotesize',
+         )
+```
+
+Eine einfaktorielle ANOVA mit Messwiederholung zeigte für das midfrontale Cluster über den Zeitraum 300-500 ms, dass das Urteil keinen signifikanten Einfluss auf die mittleren Amplituden hat (`r anova_omnibusMid$full_result$RK`). Für das linksparietale Cluster über den Zeitraum 500-800 ms gab es auch keinen signifikanten Effekt des Urteils (`r anova_omnibusLeft$full_result$RK`). 
+
+Abbildung \@ref(fig:imgERPBox) verdeutlicht die fehlenden ON-Effekte.
+
+(ref:imgERPBox) Ergebnisse der Hypothese 1b. (A) EKPs nach Urteil (*remember* vs. *know* vs. *neu*) und Elektrodencluster (*midfrontal* bzw. *linksparietal*). In der ersten Reihe sind die midfrontalen Elektroden zusammengefasst; in der zweiten Reihe die linksparietalen. (B) Boxplots für die über die relevanten Zeiträume gemittelten Amplituden pro Proband (Punktwolke) getrennt nach Urteil und Elektrodencluster. Für die midfrontalen Elektroden liegt der relevante Zeitraum in T1 (300-500 ms), für die linksparietalen Elektroden in T2 (500-800 ms). (C) Topographische Darstellungen der Differenz der EKPs der Bedingungen *know* vs. *neu* zu T1 (erste Reihe) bzw. der Differenz der EKPs der Bedingungen *remember* vs. *neu* zu T2 (zweite Reihe). Fette Punkte symbolisieren die Elektroden, die getestest wurden.
+
+\newpage
+```{r imgERPBox, include=T, fig.cap="(ref:imgERPBox)"} 
+topo_both <- ggarrange(v4plotMid, v4plotLeft, ncol = 1, legend = 'bottom', common.legend = T)
+
+ggarrange(plot_ErpBox, topo_both, widths = c(2,1), labels = c('', 'C'))
+```
+
+\newpage
+# Diskussion
+
+## Behaviorale Ebene
+
+Auf behavioraler Ebene konnten alle Hypothesen bestätigt werden. Zum einen hatten die Faktoren *Urteil* (Hypothese 1a) und *Memorabilität* (Hypothese 2a) jeweils einen signifikanten Einfluss auf die WL und zum anderen führte eine höhere Memorabilität dazu, dass das Verhältnis von R- und K-Urteilen sich signifikant in Richtung von mehr R-Urteilen veränderte.
+
+### Hypothese 1a
+
+Aufgrund des durchgeführten zweiseitigen t-Tests in Bezug auf Hypothese 1a, der eine positive Differenz des *d'*-Wertes in Richtung R-Urteile gezeigt hatte, kann darüber hinaus geschlussfolgert werden, dass ein einseitiger t-Test gezeigt hätte, dass die WL auf Basis von R-Urteilen signifikant größer als die WL auf Basis von K-Urteilen. Das entsprechende Konfidenzintervall hätte sich noch weiter von 0 entfernt und dementsprechend wäre der $p$-Wert sogar noch kleiner geworden.
+
+Dieser Befund erscheint vor dem Hintergrund der bestehenden Theorie sehr logisch. Denn *recollection* (widergespiegelt durch R-Urteile) beinhaltet den Abruf von Kontextinformation zum konfrontierten Stimulus. Wenn Probanden über das Gefühl von *familiarity* hinaus, im Stande sind, weitere Gedächtnisinhalte abzurufen, dann erscheint es wahrscheinlicher, dass es sich hierbei um korrekte Wiedererinnerungen handelt als um falsche Wiedererinnerungen. Daher sollte die WL auf dieser Basis besser sein als auf Basis von *familiarity* allein. Was durch durch die Daten dieser Arbeit gestützt wurde.
+
+Die Ergebnisse schließen nicht aus - bestätigen aber auch nicht zwangsläufig -, dass mit R-Urteilen mehr *confidence* als mit K-Urteilen einhergeht. Durch die sehr genauen Instruktionen und die Überprüfung durch die Testleiter\*innen, dass diese auch eingehalten wurden, sollte zumindest sichergestellt werden, dass hohe *confidence* zusammen mit einem Gefühl von *familiarity* nicht fälschlicherweise durch ein R-Urteil rückgemeldet wurde. 
+
+Die in diesem Zusammenhang aufschlussreichste Möglichkeit, Einflüsse von *confidence* auf *familiarity*- und *recollection*-Prozesse zu untersuchen, stellt wohl die Vielzahl an sog. *Receiver-Operating-Characteristics*-Studien (ROC) [@Yonelinas.1994; @Yonelinas.2002] dar. In solchen Exprimenten zum Wiedererkennungsgedächtnis werden neben alt- und neu-Urteilen auch *confidence*-Urteile (typischerweise auf einer sechsstufigen Skala von *1 - sehr sicher* bis *6 - sehr unsicher*) gesammelt. Mittels dieser Daten wird pro *confidence*-Stufe die Hit-Rate gegen die False-Alarm-Rate geplottet, sodass der Punkt am weitesten links im Graphen die Hit-Rate-False-Alarm-Kombination für das strengste Antwortkriterium (*sehr sicher*) darstellt. Jeder weitere Datenpunkt stellt das nächste liberalere Antwortkriterium dar, wobei spätere Datenpunkte immer eine Akkumulation der beiden Rates (Hit und False Alarm) mit den für alle vorangeganenen Antwortkriterien gebildeten Rates darstellen (Beispiel: Die Hit-Rate für das *confidence*-Urteil *3* ist die Summe der Hit-Rates basierend auf den *confidence*-Urteilen *1*, *2* und *3*).
+
+Konsistent mit dem Zwei-Prozess-Modell, was in *familiarity* einen kontinuierlichen und in *recollection* einen dichtomen Prozess sieht [@Jacoby.1991; @Mandler.1980; @Yonelinas.1994], sollten sich K-Urteilen in ROC-Darstellungen über alle *confidence*-Stufen vergleichsweise gleichmäßig erstrecken, während sich R-Urteile stark auf die erste *confidence*-Stufe konzentrieren sollten. Dies sollte in der Theorie bei rein *familiarity*-basierten Urteilen kurvige, symmetrische ROCs ergeben und bei rein *recollection*-basierten Urteilen in um 90 Grad im Uhrzeigersinn gedrehten L-förmigen ROCs [@Yonelinas.2010] resultieren. Eine wie auch immer gewichtete Kombination beider ROCs könnte dann als Maß dafür genommen werden, wie sehr in einem bestimmten Experiment *familiarity* im Vergleich zu *recollection* stattfand.
+
+Da der oben beschriebene theoretische Fall in vielen Studien bestätigt werden konnte [@Ratcliff.1992; @Yonelinas.2007], könnte ein weiterführendes Experiment für diese Studie sein, dasselbe Experiment durchzuführen und  *confidence* anstatt RK-Urteile einzuführen. Wie oben beschrieben, sollte sich - im Falle der Existenz zweier distinkter Gedächtnisprozesse - eine Kombination der theoretischen *familiarity*- und *recollection*-ROCs ergeben, also etwa ein kurviger Graph mit erhöhtem Intercept.
+
+### Hypothese 2a
+
+Ähnlich wie in @Isola.2014 konnte repliziert werden, dass Memorabilität ein über Beobachter konsistenter Faktor zu sein scheint. Was auch in der SUN-Datenbank [@Xiao.2010] als mehr memorabel galt, zeigte sich in diesem Experiment darin, dass mehr memorable Bilder tatsächlich bessere WL hervorriefen.
+
+Betrachtet man die *d'*-Werte etwas genauer (Abbildung \@ref(fig:plotDPrime) C), fällt auf, dass nur hoch memorable Fotografien Werte über 0 provozierten, was bedeutet, dass die Hit-Rates in dem Fall höher als die False-Alarm-Rates waren. Nur hoch memorable Bilder tendierten dazu, überzufällig gute WL hervorrufen. Niedrig memorable Fotografien tendierten dazu, überzufällig schlechte WL hervorzurufen, während mittel memorable Fotografien einem Wert entsprachen, den man erwarten würde, wenn Probanden blind geraten hätten oder immer *alt* bzw. immer *neu* geantwortet hätten. 
+
+Dies deckt sich sehr gut mit den in @Xiao.2010 berichteten Hit-Rates: Denn in der vorliegenden Studie wurden *Xiao*-Hit-Rates < .5 als *niedrig* memorabel eingestuft und solche Bilder provozierten tatsächlich ein negatives *d'*. Hit-Rates < .5 können als äquivalent zu *d'*-Werten < 0 gesehen werden. Ähnlich verhält es sich in der Tendenz mit der hoch memorablen Gruppe. *Xiao*-Hit-Rates > .74 wurden als *hoch* memorabel eingestuft und solche Bilder provozierten tatsächlich ein positives *d'*.
+
+Man hätte auf Grundlage der Cut-Off-Werte der Memorabilitätsstufen annehmen können, dass die Steigung des *d'*-Wertes hätte höher ausfallen können. So beinhaltete die Gruppe der mittel memorablen Fotografien *Xiao*-Hit-Rates zwischen .5 und .74, also Fotografien, von denen man erwarten könnte, dass sie im Mittel eher überzufällig gute WL hervorriefen. Im tatsächlichen Experiment spiegelte sich diese Erwartung aber nicht wieder, da die entsprechende mittlere Leistung bei einem *d'* um 0 lag. 
+
+Diese Überlegungen sind aber mit Vorsicht zu betrachten, weil hier rein deskriptive Tendenzen berichtet wurden, die einer statistischen Validierung bedürfen. Bspw. könnte man durch linearen Regression überprüfen, inwiefern die *Xiao*-Hit-Rates die hier erzielten Hit-Rates prädizierten. Das dabei ermittelte Regressionsgewicht in Kombination mit dem Intercept könnte - bei gegebener Signfikanz - als Indikator dafür gesehen werden, wie anspruchsvoll das vorliegende Experiment gewesen sein musste. Ein Intercept < 0 und ein Regressionsgewicht von 1 würde auf ein tendenziell anspruchsvolles Experiment hinweisen, da eine höhere *Xiao*-Hit-Rate zwar in gleichem Maße mit einer höheren, tatsächlich erzielten Hit-Rate einhergegangen wäre, diese aber, absolut gesehen, niedriger ausgefallen wäre. Ein Regressionsgewicht ungleich 0 würde darüber hinaus Aufschluss darüber geben, wie sich die Schwierigkeit des Experiments über die verschiedenen Ausprägungen von Memorabilität verändert. 
+
+Was man auf der Basis der hier berichteten Statistiken sagen kann, ist, dass in der Tat Hinweise darauf vorliegen, dass dieses Experiment recht anspruchsvoll gewesen sein musste.
+
+### Hypothese 3a
+
+Die Ergebnisse konnten die Hypothese bestätigen, dass mit höherer Memorabilität eine Verschiebung des Urteilsverhältnisses in Richtung von mehr R-Urteilen stattfand. Unter der Prämisse, dass R-Urteile *recollection*-Prozesse reflektieren und K-Urteile *familiarity*-Prozesse, kann dieser Befund als starker Hinweis darauf gesehen werden, dass zwei distinkte Prozesse während der Wiedererkennung von Stimuli eine Rolle spielen. 
+
+Vertreter der *single-process*-Hypothese hätten einen fehlenden Einfluss von Memorabilität auf das Urteilsverhältnis erwartet. Denn würden sich RK-Urteile auf einem einzigen Kontinuum bewegen, dann hätte sich deren Verhältnis zueinander (*SCD*) nicht durch Memorabilität beeinflussen lassen können. Dies war aber nicht der Fall.
+
+Darüber hinaus kann geschlussfolgert werden, dass höhere Memorabilität mehr *recollection* unterstützt. Höher memorable Fotografien erleichtern es anscheinend, dass man sich an konkrete Bilddetails bei einer erneuten Konfrontation wird wiedererinnern könnnen.
+
+Genauere Betrachtungen der *SCD*-Werte legen die Vermutung nahe, dass erst mit der höchsten Memorabilitätsstufe erreicht werden kann, dass ein ausgeglichenes Verhältnis zwischen R- und K-Urteilen entsteht. Für spätere Studien, die das Zwei-Prozess-Modell durch das RK-Paradigma und EEG-Untersuchungen nachzuweisen versuchen, hat dieser Befund sehr nützliche Implikationen: Für die spätere statistische Auswertung ist es höchst wünschenswert ein ausgeglichenes Verhältnis von RK-Urteilen zu erreichen, da dies sicherstellt, dass beim Grand Averaging möglichst wenige Daten aufgrund von zu geringer Trialanzahl pro Bedingung verworfen werden müssen.
+
+So könnte ein Vorschlag für folgende EEG-Untersuchungen zum Zwei-Prozess-Modell sein, ausschließlich hoch memorable Bilder zu verwenden. Das häufige Problem, zu wenige R-Urteile zu erhalten, wäre dadurch minimiert und man hätte zusätzlich für eine mögliche Drittvariable (*Memorabilität*) kontrolliert - sofern dies gewünscht ist.
+
+### Zusammenfassung der behavioralen Ergebnisse
+
+Die Untersuchung der behavioralen Ergebnisse verfolgte im Allgemeinen zwei Ziele: im ersten Schritt Memorabilitätseffekte zu replizieren, um im zweiten Schritt weitere Evidenz für das Zwei-Prozess-Modell zu liefern.
+
+In der Tat konnten die in der Vergangenheit gefundenen Memorabilitätseffekte repliziert werden, wodurch gezeigt werden konnte, dass Memorabilität über Betrachter hinweg konsistent zu sein scheint. Darüber hinaus lieferten die Befunde Nachweise dafür, dass sich RK-Urteile in unterschiedlichen WL niederschlagen und dass sich deren Verhältnis zueinander gezielt durch die Verwendung unterschiedlich memorabler Fotografien verändern lassen, starke Unterstützung für die Annahme eines Zwei-Prozess-Modells.
+
+Darüber hinaus gaben die berichteten Ergebnisse wichtige Anstöße dazu, wie zukünftige Experimente in ihrem Design optimiert werden können, um eine möglichst hohe Datenqualität zu gewährleisten. Dazu gehört, dass Möglichkeiten aufgezeigt wurden, mit denen die allgemeine Schwierigkeit des Experimentes überprüft werden könnte und wie erreicht werden kann, dass ein ausgeglicheneres Verhältnis zwischen R- und K- Urteilen entsteht.
+
+## Neuronale Ebene
+
+### Hypothese 1b
+
+Die neuronalen Daten konnten keinen *familiarity*- und auch keinen *recollection*-EKP-Old-New-Effekt nachweisen. Trotz des Ausschlusses einer ganzen Reihe von Probanden aus den neuronalen Analysen kann die Datenbasis als solide betrachtet werden.
+
+Diese Befunde erscheinen im Zusammenhang mit den behavioralen Befunden widersprüchlich. Ein Aspekt, der näher betrachtet werden sollte, ist der, dass man sich zunächst einmal bewusst machen sollte, dass diese EEG-Studie mit Fotografien als Stimuli durchgeführt wurde. Der Großteil der hier erläuterten EEG-Experimente verwendete Wörter als Stimuli [@Curran.2000; @Curran.2001; @Duzel.1997; @Nessler.2001; @Rugg.1995; @Rugg.1998]. Der noch größere Teil umfasste *familiarity*-*recollection*-Untersuchungen auf rein behavioraler Ebene [@Donaldson.1996; @Dougal.2007; @Dunn.2004; @Dunn.2008; @Hintzman.1994; @Hirshman.1998; @Inoue.1998; @Jacoby.1991; @Ratcliff.1992].
+
+Fotografien wurden nur in Curran und Cleary (2003), @Curran.2002 und in @Duarte.2004 verwendet. Zwischen diesen Studien muss nochmals unterschieden werden: Denn während Curran und Cleary (2003) und @Curran.2002 Fotografien nutzten und durch Manipulation auf Stimulus-Ebene (Links-Rechts-Spiegelung bzw. *blobs*) eine Dissoziation zwischen den zu untersuchenden Prozessen zu provozieren versuchte, ist die Studie von @Duarte.2004 die einzige hier aufgeführte Studie, die erstens eine EEG-Studie ist, zweitens Fotografien als Stimuli verwendet und drittens das RK-Paradigma verwendet. 
+
+Diese Unterscheidung ist wichtig, da schon in der Vergangenheit diskutiert wurde, ob etwa der midfrontale ON-Effekt mehr mit Sprachverständnis-Prozessen assoziiert [@Olichney.2000] sein könnte. In diesem Punkt scheint es widersprüchliche Befunde zu geben.
+
+Zuletzt kann festgehalten werden, dass das RK-Paradigma möglicherweise keine geeignete Methode für die *neuronale* Untersuchung von Einflüssen von Memorabilität auf *familiarity* und *recollection* darstellt, da mit niedrigerer Memorabilität weniger R-Urteile assoziiert sind. Dieser Befund an sich ist aber unabhängig davon gesehen schon aussagekräftig, wie im vorangegangenen Abschnitt zu den behavioralen Ergebnissen erläutert wurde. 
+
+Um eine höhere Trialanzahl pro Versuchsbedingung zu erreichen und um gleichzeitig Memorabilität zu untersuchen, könnte man sich in Zukunft des Paradigmas von Curran und Cleary (2003), die eine Manipulation der Ähnlichkeit durch Links-Rechts-Spiegelungen von Fotografien durchführten und dadurch die Unterscheidung zwischen *familiarity* und *recollection* zu provozieren versuchten. So wäre man nicht von einer Verschiebung des Urteilsverhältnisses, wie hier am RK-Paradigma deutlich wurde, abhängig.
+
+## Behaviorale und neuronale Ergebnisse
+
+Die vorangegeganen Überlegungen legten den Fokus darauf, dass es in weiteren Studien wichtig sein könnte, herauszuarbeiten, inwiefern die Stimulusmodalität (Wörter vs. Fotografien) einen Einfluss auf mögliche ON-Effekte haben könnte.
+
+Dennoch kann dadurch nicht die Diskrepanz zwischen den behavioralen und neuronalen Daten erklärt werden. Die fehlenden ON-Effekte könnten mit der Tatsache zusammenhängen, dass dieses Experiment ein vergleichsweise langes Pausenintervall zwischen Lern- und Testphase umgesetzt hat. Alle hier erläuterten EEG-Studien wurden innerhalb eines Tages durchgeführt. 
+
+Es könnte also sein, dass die *neuronale Spur* einer möglichen Zwei-Prozess-Verarbeitung mit der Zeit verloren geht, die darin enthaltenen Informationen über die Neuheit der Stimuli aber auf andere Weise abrufbar bleiben und dennoch auch ohne *familiarity*- und *recollection*-EKP-Effekte *familiarity*- und *recollection*-Verhaltens-Effekte länger persistieren oder zumindest messbar sind. 
+
+Dennoch: Auch zu längeren Pausenintervallen existiert mindestens eine Studie [@Curran.2004], die sogar nach einer Ein-Tages-Pause den midfrontalen ON-Effekt nachweisen konnte. Hier ergibt sich die Frage, inwiefern bisher gefundene ON-Effekte überhaupt zum Langzeitgedächtnis beitragen.
+
+## Konklusion
+
+Die vorliegende Arbeit hatte das Ziel, das Zwei-Prozess-Modell nachzuweisen und dabei den Einfluss von Memorabilität zu berücksichtigen. Es konnte gezeigt werden, dass die Daten diese Zwei-Prozess-Annahme stützten und dass es unter Berücksichtigung von Memorabilität möglich ist, *familiarity*- und *recollection*-Effekte durch ein wohl durchdachtes Studiendesign von vorne herein wahrscheinlicher zu machen (Verwendung ausschließlich memorabler Stimuli). Hierdurch könnten auch häufige methodische Schwächen in RK-Paradigmen (wenige R-Urteile) minimiert werden.
+
+Obwohl die behavioralen Ergebnisse deutlich für zwei distinkte Prozesse sprechen, wirkten die neuronalen dahingehend widersprüchlich. Verschiedene Implikationen für spätere Untersuchungen lassen sich aus diesen Befunden schließen. Fragen wie: *Wie groß ist der Einfluss der Stimulusmodilität auf familiarity- und recollection-Effekte?* und *Welchen Einfluss hat die Länge der Pause zwischen Enkodierung und Abruf auf die Effekte?* sollten in Zukunft mehr Beachtung finden.
+
+Für zukünftige neuronale Untersuchungen von Einflüssen von Memorabilität auf *familiarity* und *recollection* erscheint die Verwendung des Paradigmas in Curran und Cleary (2003) vielversprechend.
+
+Diese Arbeit konnte neue Erkenntniss darüber liefern, wie wir uns ein akkurates Modell des Wiedererkennungsgedächtnisses vorstellen können. Durch die Berücksichtigung von Memorabilität im Zusammenspiel mit *familiarity* und *recollection* konnten neue Sichweisen eröffnet werden, die es in der Weise bisher noch nicht gegeben hat. 
+
+\newpage
+# Referenzen
+
+```{r create_r-references}
+r_refs(file = 'r-references.bib')
+```
+
+\begingroup
+\setlength{\parindent}{-0.5in}
+\setlength{\leftskip}{0.5in}
+
+<div id = 'refs'></div>
+\endgroup
+
+\newpage
+# Anhänge
+## Formeln
+
+Hit-Rate: $$HR_{ij} = \frac{hits_{ij}}{hits_{ij}+misses_{ij}}$$
+
+False Alarm Rate: $$FAR_{ij} = \frac{fa_{ij}}{fa_{ij}+cr_{ij}}$$
+
+Sensitivität: $$d'_{ij} = z(HR_{ij}) - z(FAR_{ij})$$
+
+Antworttendenz: $$c_{ij} = \frac{z(HR_{ij}) + z(FAR_{ij})}{-2}$$ 
+
+Scaled Difference: $$SCD_{ni} = \frac{R_{ni} - K_{ni}}{R_{ni} + K_{ni}}$$
+
+$~$
+
+* i: i-tes Memorabilitätslevel (*niedrig* vs. *mittel* vs. *hoch*)
+* j: j-tes Urteil (*remember* vs. *know*)
+* n: n-ter Proband
+* fa: Anzahl der *false alarms*
+* cr: Anzahl der *correct rejections*
+* R: Anzahl der *remember*-Urteil
+* K: Anzahl der *know*-Urteile
+
+\newpage
+## Abbildungen
+
+```{r densedata, include=T, fig.cap="(A) Dichteverteilung der Antwortlatenzen (bis vier Sekunden) getrennt nach Urteil (B) Dichteverteilung der Antwortlatenzen (bis vier Sekunden) getrennt nach Memorabilität."}
+ggarrange(plot_RTDenseRK, plot_RTDenseMemlev, nrow = 2, labels = c('A', 'B'), font.label = list(size = 12))
+```
+
+(ref:alternativeDependentVars) Alternative Operationalisierungen für die WL. Die Fehlerbalken repräsentieren 95%-within-subject-Konfidenzintervalle um die Mittelwerte (Punkte). Je nach gewählter abhängiger Variable (AV) ergeben sich scheinbar unterschiedliche Effekte, die unterschiedliche Interpretationen zulassen. Hätte ich, wie in vielen vorigen Studien, die Hit-Rate (A) als AV verwendet, könnte man hinsichtlich der Hypothese 1a fälschlicherweise auf den Schluss kommen, dass die WL für K- besser ausfällt als für R-Urteile. *Besser ist es, auf sein Bauchgefühl zu vertrauen* - könnte eine mögliche Interpretation des Befundes sein. Sieht man sich aber zusätzlich den Line Plot für die False Alarm Rate an, erkennt man schnell, dass die *bessere* Hit-Rate soz. durch eine *schlechtere* False Alarm Rate (B) *erkauft* wurde. Mehr Hits gehen mit mehr False Alarms einher. *d'* (C) berücksichtigt genau diesen Umstand, indem Hits und False Alarms kombiniert werden. Meiner Ansicht nach ist die *d'* eine validere Operationalisierung der WL. Trotzdem: Auch *d'* unterschlägt Informationen, die auch relevant und interessant sein könnten, wie z.B. die *Antworttendenz* (D). Jemand, der eher dazu tendiert, *alt* als *neu* zu urteilen, hat eine liberalere Antworttendenz in Richtung *alt*. Gleichzeitig können zwei Personen mit derselben Sensitivität *d'* unterschiedliche Antworttendenzen haben. Wessen WL die bessere ist, wäre an diesem Punkt kontextabhängig zu beurteilen.
+
+\newpage
+```{r alternativeDependentVars, include=T, fig.cap="(ref:alternativeDependentVars)"}
+plot_recog
+```
+
+\newpage
+
+(ref:EKPElecs) EKPs der sechs midfrontalen Elektroden. T1 meint den getesteten Zeitraum 300-500 ms.
+
+```{r EKPElecs, include=T, fig.cap="(ref:EKPElecs)"}
+ggarrange(plot_erpMid, legend = 'bottom') %>% ggarrange(., plot_ElecsMid, widths = c(4.5, 1))
+```
+
+\newpage
+
+(ref:EKPElecsLeft) EKPs sechs linksparietalen Elektroden. T2 meint den getesteten Zeitraum 500-800 ms.
+
+```{r EKPElecsLeft, include=T, fig.cap="(ref:EKPElecsLeft)"}
+ggarrange(plot_erpLeft, legend = 'bottom') %>% ggarrange(., plot_ElecsLeft, widths = c(4.5, 1))
+```
+
+\newpage
+## Material
+
+```{r tInfo, include=T, fig.cap='Teilnehmerinformation.'} 
+include_graphics('../Images/tInfo.pdf')
+```
+
+\newpage
+```{r einwilligung, include=T, fig.cap='Einwilligungserklärung'} 
+include_graphics('../Images/einwilligung.pdf')
+```
+
+\newpage
+# Plagiatserklärung
+
+Hiermit versichere ich, dass die vorliegende Arbeit *Das Zusammenspiel von Familiarity, Recollection und Memorabilität* selbstständig verfasst worden ist, dass keine anderen Quellen und Hilfsmittel als die angegebenen benutzt worden sind und dass die Stellen der Arbeit, die anderen Werken – auch elektronischen Medien – dem Wortlaut oder Sinn nach entnommenen wurden, auf jeden Fall unter Angabe der Quelle als Entlehnung kenntlich gemacht worden sind.  
+
+$~$
+
+$~$
+
+$~$
+
+(Datum, Unterschrift)
+
+$~$
+
+Ich erkläre mich mit einem Abgleich der Arbeit mit anderen Texten zwecks Auffindung von Übereinstimmungen sowie mit einer zu diesem Zweck vorzunehmenden Speicherung der Arbeit in eine Datenbank einverstanden. 
+
+$~$
+
+$~$
+
+$~$
+
+(Datum, Unterschrift)

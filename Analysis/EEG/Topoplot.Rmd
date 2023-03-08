@@ -1,0 +1,349 @@
+---
+title: 'Topoplot'
+author: 'Veasch'
+date: '16. Januar, 2020'
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r packages, include=FALSE}
+# install packages, if necessary
+if (!require('pacman')) install.packages('pacman')
+pacman::p_load(data.table, tidyverse, akima, reshape2, mgcv, scales, viridis, ggpubr) # pacman firstly checks for missing packages, and installs them, if any are missing
+
+# loading packages
+pkgs <- c('data.table', 'tidyverse', 'akima', 'reshape2', 'mgcv', 'eegUtils', 'scales', 'viridis', 'ggpubr')
+sapply(pkgs, require, character.only = TRUE)
+
+# create parameters for special ggplot layer, which changes the look of the plots into an APA-conform appearance
+apastyle <- theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
+panel.background = element_blank(), axis.line = element_line(colour = 'black'), legend.position='right', strip.background = element_blank(), strip.text = element_text(face = 'bold'))
+```
+
+Inspiration came from 
+* https://www.mattcraddock.com/blog/2017/02/25/erp-visualization-creating-topographical-scalp-maps-part-1/ 
+and 
+* https://stackoverflow.com/questions/35019382/topoplot-in-ggplot2-2d-visualisation-of-e-g-eeg-data.
+
+# Import
+
+```{r import}
+
+chanlocs <- fread('chanlocs.csv')
+chanlocs <- chanlocs[, .(Channel = V1, x = V2, y = V3, z = V4)]
+chanlocs[, z:=NULL]
+chanlocs <- chanlocs[- c(46, 66)] # remove IOI and A1-1
+
+topoData_midRem <- fread('topoData_midRem.csv') # eeg data 300-500 ms 
+topoData_midRem <- topoData_midRem[, .(Channel, RK, signal = uV)]
+
+#tmpRem <- topoData[RK=='remember',]
+#tmpnew <- topoData[RK=='new',]
+
+topoData_midRem <- topoData_midRem[RK=='remember',]
+
+topoData_midRem <- merge(topoData_midRem, chanlocs, by='Channel')
+
+
+topoData_leftRem <- fread('topoData_leftRem.csv') # eeg data 300-500 ms 
+topoData_leftRem <- topoData_leftRem[, .(Channel, RK, signal = uV)]
+
+topoData_leftRem <- topoData_leftRem[RK=='remember',]
+
+topoData_leftRem <- merge(topoData_leftRem, chanlocs, by='Channel')
+```
+
+# Midfrontal examples
+
+```{r}
+#  chanlocs
+cartesian <- ggplot(chanlocs,
+                    aes(x, y, label = Channel))+
+  geom_text()+
+  theme_bw()+
+  coord_equal()
+
+cartesian
+
+
+# axis make up
+
+theme_topo <- function(base_size = 12)
+  {
+  theme_bw(base_size = base_size) %+replace%
+      theme(
+            rect             = element_blank(),
+            line             = element_blank(),
+            axis.text = element_blank(),
+            axis.title = element_blank()
+           )
+}
+
+circleFun <- function(center = c(0,0), diameter = 1, npoints = 100) {
+  r = diameter/2
+  tt <- seq(0,2*pi,length.out = npoints)
+  xx <- center[1] + r * cos(tt)
+  yy <- center[2] + r * sin(tt)
+  return(data.frame(x = xx, y = yy))
+}
+
+headShape <- circleFun(c(0, 0), round(max(chanlocs$x)), npoints = 100) 
+nose <- data.table(x = c(-0.075,0,.075),y=c(.495,.575,.495))
+
+
+ggplot(headShape,aes(x,y))+
+  geom_path()+
+  geom_text(data = chanlocs,
+            aes(x/2, y/2, label = Channel))+
+  geom_line(data = nose,
+            aes(x, y, z = NULL))+
+  theme_topo()+
+  coord_equal()
+
+# Define Matlab-style Jet colourmap
+jet.colors <- colorRampPalette(c('#00007F', 'blue', '#007FFF', 'cyan', '#7FFF7F', 'yellow', '#FF7F00', 'red', '#7F0000'))
+
+
+topoData_midRem[, ':=' (x=x/2, y=y/2)] # fitting into the coordinate system
+
+grandAv <- topoData_midRem[, .(signal = mean(signal)), by = .(x,y)]
+limitGA <- quantile(grandAv$signal, 1) * c(-1, 1)
+  
+ggplot(headShape,aes(x,y))+
+  geom_path(size = 1)+
+  geom_point(data = grandAv,aes(x,y,colour = signal), size = 3)+
+  scale_colour_gradientn(colours = jet.colors(10),guide = 'colourbar',oob = squish, limit = limitGA)+ # note: oob = squish forces everything outside the colour limits to equal nearest colour boundary (i.e. below min colours = min colour)
+  geom_line(data = nose,aes(x, y, z = NULL),size = 1)+
+  theme_topo()+
+  coord_equal()
+
+ggplot(headShape,aes(x,y))+
+  geom_path(size = 1)+
+  geom_point(data = grandAv,aes(x,y,colour = signal), size = 3)+
+  scale_colour_distiller(palette = 'RdBu', guide = 'colourbar',oob = squish, limit = limitGA)+ # note: oob = squish forces everything outside the colour limits to equal nearest colour boundary (i.e. below min colours = min colour)
+  geom_line(data = nose,aes(x, y, z = NULL),size = 1)+
+  theme_topo()+
+  coord_equal()
+```
+
+# Midfrontal Topo
+
+```{r}
+splineSmooth <- gam(signal ~ s(x, y, bs = 'ts'),
+                    data = topoData_midRem)
+
+gridRes = 500
+
+GAMtopo <- data.frame(expand.grid(x = seq(min(topoData_midRem$x)*2,
+                                          max(topoData_midRem$x)*2,
+                                          length = gridRes),
+                                  y = seq(min(topoData_midRem$y)*2,
+                                          max(topoData_midRem$y)*2,
+                                          length = gridRes)))
+
+GAMtopo$signal <-  predict(splineSmooth,
+                              GAMtopo,
+                              type = 'response')
+
+GAMtopo$incircle <- (GAMtopo$x)^2 + (GAMtopo$y)^2 < .7^2 # mark
+GAMtopo <- GAMtopo[GAMtopo$incircle,]
+maskRing <- circleFun(diameter = 1.42)
+limit <- quantile(GAMtopo$signal, 1) * c(-1, 1)
+highlight_elecs <- chanlocs[Channel %in% c('A6', 'B2', 'B3', 'B7', 'B9', 'B11'), .(Channel, x, y)]
+
+ggplot(GAMtopo, aes(x, y, fill = signal)) +
+  geom_raster()+
+  stat_contour(aes(z = signal),
+               binwidth = 1.5, color = 'black')+
+  theme_topo()+
+  scale_fill_gradientn(colours = jet.colors(10),guide = 'colourbar', limit = limit, oob = squish) +
+  geom_path(data = maskRing,
+            aes(x, y, z = NULL, fill = NULL),
+            colour = 'white',
+            size = 6)+
+  geom_point(data = chanlocs,
+             aes(x/2, y/2,fill = NULL), colour = 'black', size = .75) +
+  # highlighting elecs
+  geom_point(data = highlight_elecs, aes(x/2, y/2, z = NULL, fill = NULL), 
+            shape = 21, colour = 'white', fill = 'white', size = 1.75) +
+  geom_path(data = nose,
+            aes(x, y, z = NULL, fill = NULL), size = 1)+
+  geom_path(data = headShape,
+            aes(x,y,z = NULL, fill = NULL), size = 1) +
+  coord_equal()
+
+topoplotMid <- ggplot(GAMtopo, aes(x, y, fill = signal)) +
+  geom_raster()+
+  stat_contour(aes(z = signal),
+               binwidth = 1.5, color = 'black', size = .5)+
+  theme_topo()+
+  scale_fill_distiller(type = 'div',palette = 'RdBu', limit = limit,
+                              guide = 'colourbar', name = expression(paste(mu, 'V')),
+                              oob = squish) +
+  geom_path(data = maskRing,
+            aes(x, y, z = NULL, fill = NULL),
+            colour = 'white',
+            size = 6)+
+  geom_point(data = chanlocs,
+             aes(x/2, y/2,fill = NULL), colour = 'black', size = .3) +
+  geom_path(data = nose,
+            aes(x, y, z = NULL, fill = NULL),
+            size = .75)+
+  geom_path(data = headShape,
+            aes(x,y,z = NULL, fill = NULL),
+            size = .75) +
+  # highlighting elecs
+  geom_point(data = highlight_elecs, aes(x/2, y/2, z = NULL, fill = NULL), 
+            shape = 21, colour = '#507e70', fill = '#507e70', size = 1) +
+  coord_equal()
+
+topoplotMid
+```
+
+# MatLab Interpolation
+
+```{r eval=F}
+rmax <- .75   #specify a maximum boundary for the grid
+gridRes <- 67 #specify the interpolation grid resolution
+
+## Create a function to perform Matlab's v4 interpolation.
+## Takes as input a data-frame with columns x, y, and z (x co-ordinates, y co-ordinates, and signal)
+## and variables xo and yo, the co-ordinates which will be use to create a grid for interpolation
+
+v4Interp <- function(df, xo, yo, rmax = .75, gridRes = 67) {
+  xo <- matrix(rep(xo,length(yo)),nrow = length(xo),ncol = length(yo))
+  yo <- t(matrix(rep(yo,length(xo)),nrow = length(yo),ncol = length(xo)))
+  xy <- df$x + df$y*sqrt(as.complex(-1))
+  d <- matrix(rep(xy,length(xy)),nrow = length(xy), ncol = length(xy))
+  d <- abs(d - t(d))
+  diag(d) <- 1
+  g <- (d^2) * (log(d)-1)   # Green's function.
+  diag(g) <- 0
+  weights <- qr.solve(g,df$z)
+  xy <- t(xy)
+  outmat <- matrix(nrow = gridRes,ncol = gridRes)
+  for (i in 1:gridRes){
+    for (j in 1:gridRes) {
+      test4 <- abs((xo[i,j] + sqrt(as.complex(-1))*yo[i,j]) - xy)
+      g <- (test4^2) * (log(test4)-1)
+      outmat[i,j] <- g %*% weights
+      }
+  }
+  outDf <- data.frame(x = xo[,1],outmat)
+  names(outDf)[1:length(yo[1,])+1] <- yo[1,]
+  #return(list(x = xo[,1],y = yo[1,],z = outmat))
+  return(outDf)
+}
+
+## Create data frame to be used for interpolation - the function needs columns labelled x, y, and z
+
+testDat<- data.frame(x = topoData_midRem$x,
+                     y = topoData_midRem$y,
+                     z = topoData_midRem$signal)
+
+#Create the interpolation grid
+xo <- seq(min(-rmax, testDat$x), max(rmax, testDat$x), length = gridRes)
+yo <- seq(max(rmax, testDat$y), min(-rmax, testDat$y), length = gridRes)
+
+interpV4 <- v4Interp(testDat, xo, yo)
+
+interpV4 <- gather(interpV4,
+                   key = y,
+                   value = signal,
+                   -x,
+                   convert = TRUE) 
+
+interpV4$incircle <- (interpV4$x)^2 + (interpV4$y)^2 < 0.7 ^ 2 # mark
+
+limit <- quantile(interpV4$signal, 1, na.rm = T) * c(-1, 1)
+
+v4plot <- ggplot(interpV4[interpV4$incircle,],aes(x = x, y = y, fill = signal))+
+  geom_raster()+
+  stat_contour(aes(z = signal),binwidth = 0.5)+
+  theme_topo()+
+   geom_path(data = maskRing,
+            aes(x, y, z = NULL, fill =NULL),
+            colour = "white",
+            size = 6)+
+  scale_fill_gradientn(colours = jet.colors(10),
+                       guide = "colourbar",
+                       limits = limit,
+                       oob = squish)+
+  geom_point(data = topoData_midRem,
+             aes(x,y),
+             size = 1)+
+  geom_path(data = headShape,
+            aes(x,y,z = NULL,fill = NULL),
+            size = 1.5)+
+  geom_path(data = nose,
+            aes(x, y, z = NULL, fill = NULL),
+            size = 1.5)+
+  coord_equal()
+
+v4plot
+```
+
+# Leftparietal Topo
+
+```{r}
+splineSmooth <- gam(signal ~ s(x, y, bs = 'ts'),
+                    data = topoData_leftRem)
+
+gridRes = 500
+
+GAMtopo <- data.frame(expand.grid(x = seq(min(topoData_leftRem$x)*2,
+                                          max(topoData_leftRem$x)*2,
+                                          length = gridRes),
+                                  y = seq(min(topoData_leftRem$y)*2,
+                                          max(topoData_leftRem$y)*2,
+                                          length = gridRes)))
+
+GAMtopo$signal <-  predict(splineSmooth,
+                              GAMtopo,
+                              type = 'response')
+
+GAMtopo$incircle <- (GAMtopo$x)^2 + (GAMtopo$y)^2 < .7^2 # mark
+GAMtopo <- GAMtopo[GAMtopo$incircle,]
+maskRing <- circleFun(diameter = 1.42)
+limit <- quantile(GAMtopo$signal, 1) * c(-1, 1)
+highlight_elecsLeft <- chanlocs[Channel %in% c('B23', 'B24', 'B25', 'B29', 'B30', 'B31'), .(Channel, x, y)]
+
+
+topoplotLeft <- ggplot(GAMtopo, aes(x, y, fill = signal)) +
+  geom_raster()+
+  stat_contour(aes(z = signal),
+               binwidth = 1.5, color = 'black', size = .5)+
+  theme_topo()+
+  scale_fill_distiller(type = 'div',palette = 'RdBu', limit = limit,
+                              guide = 'colourbar', name = expression(paste(mu, 'V')),
+                              oob = squish) +
+  geom_path(data = maskRing,
+            aes(x, y, z = NULL, fill = NULL),
+            colour = 'white',
+            size = 6)+
+  geom_point(data = chanlocs,
+             aes(x/2, y/2,fill = NULL), colour = 'black', size = .3) +
+  geom_path(data = nose,
+            aes(x, y, z = NULL, fill = NULL),
+            size = .75)+
+  geom_path(data = headShape,
+            aes(x,y,z = NULL, fill = NULL),
+            size = .75) +
+  # highlighting elecs
+  geom_point(data = highlight_elecsLeft, aes(x/2, y/2, z = NULL, fill = NULL), 
+            shape = 21, colour = '#507e70', fill = '#507e70', size = 1) +
+  coord_equal()
+
+topoplotLeft
+```
+
+```{r saving enviroment, include = F}
+
+# Saving Enviromenment for Manuscript
+save.image('Topoplot.RData')
+```
+
+
